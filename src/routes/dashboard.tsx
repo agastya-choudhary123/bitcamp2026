@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Camera, Activity, AlertTriangle, User, Info, LineChart, Video as VideoIcon, LogOut } from "lucide-react";
+import { Camera, Activity, AlertTriangle, User, Info, LineChart, Video as VideoIcon, LogOut, Phone } from "lucide-react";
 import WaveformChart from "@/components/WaveformChart";
 
 export const Route = createFileRoute("/dashboard")({
@@ -94,6 +94,10 @@ function DashboardPage() {
             <Info size={18} />
             Safety Guide
           </Link>
+          <Link to="/emergency-contacts" className="glass-card p-3 px-6 flex items-center gap-2 text-sm font-medium hover:bg-foreground/5 transition-colors text-foreground">
+            <Phone size={18} className="text-primary" />
+            Contacts
+          </Link>
           <div className="relative">
             <button
               onClick={() => setShowProfileMenu(!showProfileMenu)}
@@ -127,12 +131,6 @@ function DashboardPage() {
             <div className="video-container aspect-video flex items-center justify-center">
               <video ref={videoRef} autoPlay playsInline className="video-feed" />
               {!isCameraActive && <p className="text-muted-foreground italic">Activating camera...</p>}
-              {earScore < 0.25 && (
-                <div className="absolute inset-x-0 top-0 p-4 bg-destructive/80 backdrop-blur-md flex items-center justify-center gap-3 animate-pulse">
-                  <AlertTriangle className="text-destructive-foreground" />
-                  <span className="text-destructive-foreground font-bold text-lg uppercase">Drowsiness Detected! Wake Up!</span>
-                </div>
-              )}
             </div>
           </div>
 

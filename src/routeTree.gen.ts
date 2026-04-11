@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as ReplaysRouteImport } from './routes/replays'
 import { Route as GuideRouteImport } from './routes/guide'
+import { Route as EmergencyContactsRouteImport } from './routes/emergency-contacts'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 
@@ -30,6 +31,11 @@ const GuideRoute = GuideRouteImport.update({
   path: '/guide',
   getParentRoute: () => rootRouteImport,
 } as any)
+const EmergencyContactsRoute = EmergencyContactsRouteImport.update({
+  id: '/emergency-contacts',
+  path: '/emergency-contacts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DashboardRoute = DashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -44,6 +50,7 @@ const IndexRoute = IndexRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/emergency-contacts': typeof EmergencyContactsRoute
   '/guide': typeof GuideRoute
   '/replays': typeof ReplaysRoute
   '/signup': typeof SignupRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/emergency-contacts': typeof EmergencyContactsRoute
   '/guide': typeof GuideRoute
   '/replays': typeof ReplaysRoute
   '/signup': typeof SignupRoute
@@ -59,21 +67,42 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
+  '/emergency-contacts': typeof EmergencyContactsRoute
   '/guide': typeof GuideRoute
   '/replays': typeof ReplaysRoute
   '/signup': typeof SignupRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/guide' | '/replays' | '/signup'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/emergency-contacts'
+    | '/guide'
+    | '/replays'
+    | '/signup'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/guide' | '/replays' | '/signup'
-  id: '__root__' | '/' | '/dashboard' | '/guide' | '/replays' | '/signup'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/emergency-contacts'
+    | '/guide'
+    | '/replays'
+    | '/signup'
+  id:
+    | '__root__'
+    | '/'
+    | '/dashboard'
+    | '/emergency-contacts'
+    | '/guide'
+    | '/replays'
+    | '/signup'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
+  EmergencyContactsRoute: typeof EmergencyContactsRoute
   GuideRoute: typeof GuideRoute
   ReplaysRoute: typeof ReplaysRoute
   SignupRoute: typeof SignupRoute
@@ -102,6 +131,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GuideRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/emergency-contacts': {
+      id: '/emergency-contacts'
+      path: '/emergency-contacts'
+      fullPath: '/emergency-contacts'
+      preLoaderRoute: typeof EmergencyContactsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/dashboard': {
       id: '/dashboard'
       path: '/dashboard'
@@ -122,6 +158,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
+  EmergencyContactsRoute: EmergencyContactsRoute,
   GuideRoute: GuideRoute,
   ReplaysRoute: ReplaysRoute,
   SignupRoute: SignupRoute,
