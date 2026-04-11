@@ -11,23 +11,64 @@ mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log("MongoDB connected"))
     .catch(err => console.error("MongoDB error:", err))
 
-const driverStateSchema = new mongoose.Schema({
-    timestamp: Number,
-    driverName: String,
-    internal: Object,
-    external: Object,
-    emergencyTriggered: { type: Boolean, default: false }
-}, { timestamps: true })
-
 const replaySchema = new mongoose.Schema({
-    driverName: String,
+    replayName: String,
     sessionStart: Date,
     sessionEnd: { type: Date, default: Date.now },
     states: Array
 })
 
-const DriverState = mongoose.model("DriverState", driverStateSchema)
+const DriverState = mongoose.model("DriverState", new mongoose.Schema({
+    timestamp: { type: Date, default: Date.now },
+    driverName: String,
+    ear: Number,
+    perclos: Number,
+    drowsinessLevel: Number,
+    lat: Number,
+    lng: Number,
+    internal: {
+        faceDetected: Boolean,
+        trackingConfidence: Number,
+        drowsiness: Object,
+        distraction: Object,
+        impairment: Object
+    },
+    external: {
+        forwardHazard: Object,
+        visibility: Object
+    },
+    emergencyTriggered: { type: Boolean, default: false },
+    videoClip: String
+}, { timestamps: true }))
+
 const Replay = mongoose.model("Replay", replaySchema)
+
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+app.get("/report/:driverName", async (req, res) => {
+    try {
+        // Fetch last 30 states for this driver to analyze patterns
+        const logs = await DriverState.find({ driverName: req.params.driverName })
+            .sort({ timestamp: -1 })
+            .limit(30);
+
+        if (logs.length === 0) return res.json({ report: "No drive data found yet." });
+
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const summary = logs.map(l => ({
+            time: new Date(l.timestamp).toLocaleTimeString(),
+            drowsiness: l.internal?.drowsiness?.state,
+            hazard: l.external?.forwardHazard?.state
+        }));
+
+        const prompt = `Analyze these driving logs and generate a safety report for ${req.params.driverName}: ${JSON.stringify(summary)}. Provide actionable safety feedback.`;
+        const result = await model.generateContent(prompt);
+        res.json({ report: result.response.text() });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+})
 
 function checkEmergency(state) {
     const drowsy = state.internal?.drowsiness?.state

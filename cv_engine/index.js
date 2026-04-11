@@ -40,6 +40,10 @@ const externalVision = new ExternalVisionManager();
 let lastVideoTime = -1;
 let lastVisibilityCheckTime = 0;
 let lastHazardCheckTime = 0;
+let lastLogTime = 0;
+let sessionId = "session_" + Math.random().toString(36).substr(2, 9);
+let currentStream = null;
+let isRecordingAnomaly = false;
 
 // Calibration tracking for offset dashcams
 let baselinePitch = 0;
@@ -70,7 +74,9 @@ startButton.addEventListener("click", async () => {
     await externalVision.initialize();
     
     log("Requesting camera permissions...");
-    await startWebcam(videoElement);
+    currentStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    videoElement.srcObject = currentStream;
+    videoElement.play();
     
     log("Webcam started. Running inference loop!");
     requestAnimationFrame(inferenceLoop);
@@ -322,8 +328,94 @@ function inferenceLoop() {
             liveImpairmentStateDom.innerText = `[ ${stringImpairment} ]`;
             liveImpairmentStateDom.style.color = (stringImpairment === "normal") ? "lightgreen" : "red";
         }
+
+        // --- STEP 12: LOGGING & ANOMALY HANDLING ---
+        const state = CvState.internal?.drowsiness?.state;
+        const hazard = CvState.external?.forwardHazard?.state;
+        const impairment = CvState.internal?.impairment?.state;
+        
+        const isAnomaly = state !== "awake" || hazard !== "clear" || impairment !== "normal";
+        
+        // Immediate anomaly logging + clipping
+        if (isAnomaly && !isRecordingAnomaly) {
+            log(`[ANOMALY] ${state} / ${hazard}. Clipping footage...`);
+            handleAnomaly(CvState);
+        }
+
+        // Routine periodic logging (every 3 seconds)
+        if (nowInMs - lastLogTime > 3000) {
+            lastLogTime = nowInMs;
+            pushLog(CvState, false);
+        }
     }
     
     // Schedule the next loop iteration exactly when the browser paints the next frame
     window.requestAnimationFrame(inferenceLoop);
+}
+
+async function pushLog(state, isAnomaly, clip = null) {
+    // Map internal state to drowsinessLevel 0-3
+    const drowsinessState = state.internal?.drowsiness?.state || "awake";
+    let drowsinessLevel = 0;
+    if (drowsinessState === "microsleep_risk") drowsinessLevel = 3;
+    else if (drowsinessState === "drowsy_warning") drowsinessLevel = 2;
+    else if (drowsinessState.includes("fatigue")) drowsinessLevel = 1;
+
+    const payload = {
+        driverName: "Anthony",
+        timestamp: Date.now(),
+        lat: 38.9897, // Match user example
+        lng: -76.9378,
+        ear: state.internal?.drowsiness?.avgEAR || 0,
+        perclos: Math.round((state.internal?.drowsiness?.perclos30s || 0) * 100),
+        drowsinessLevel: drowsinessLevel,
+        internal: {
+            faceDetected: state.internal?.faceDetected || false,
+            trackingConfidence: 0.95, // Mock confidence
+            drowsiness: state.internal?.drowsiness || {},
+            distraction: state.internal?.distraction || {},
+            impairment: state.internal?.impairment || {}
+        },
+        external: {
+            forwardHazard: state.external?.forwardHazard || {},
+            visibility: state.external?.visibility || {}
+        },
+        videoClip: clip
+    };
+
+    try {
+        await fetch('http://localhost:3001/state', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+    } catch (e) {
+        console.error("Failed to push log to production backend:", e);
+    }
+}
+
+function handleAnomaly(state) {
+    if (!currentStream || isRecordingAnomaly) return;
+    
+    isRecordingAnomaly = true;
+    const recorder = new MediaRecorder(currentStream, { mimeType: 'video/webm' });
+    const chunks = [];
+    
+    recorder.ondataavailable = (e) => chunks.push(e.data);
+    recorder.onstop = async () => {
+        const blob = new Blob(chunks, { type: 'video/webm' });
+        const reader = new FileReader();
+        reader.readAsDataURL(blob);
+        reader.onloadend = () => {
+            const base64 = reader.result.split(',')[1];
+            pushLog(state, true, base64);
+            isRecordingAnomaly = false;
+        };
+    };
+    
+    recorder.start();
+    // Capture 3 seconds of the event
+    setTimeout(() => {
+        if (recorder.state === "recording") recorder.stop();
+    }, 3000);
 }

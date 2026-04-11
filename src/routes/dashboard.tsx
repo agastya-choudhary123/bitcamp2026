@@ -134,6 +134,7 @@ function DashboardPage() {
             </div>
           </div>
 
+          {/* Waveform Chart */}
           <div className="glass-card p-6 h-[250px]">
             <div className="flex items-center gap-2 mb-4 text-sm font-bold uppercase tracking-wider text-muted-foreground">
               <Activity size={16} className="text-primary" />
@@ -141,6 +142,8 @@ function DashboardPage() {
             </div>
             <WaveformChart dataPoints={history} />
           </div>
+
+          <AIReport sessionId="current_session" />
         </div>
 
         <div className="space-y-8">
