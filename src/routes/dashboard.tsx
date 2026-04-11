@@ -94,11 +94,26 @@ function DashboardPage() {
             <Info size={18} />
             Safety Guide
           </Link>
-          <div className="glass-card p-3 px-6 flex items-center gap-2 text-sm font-medium text-foreground">
-            <User size={18} />
-            Anthony
+          <div className="relative">
+            <button
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="glass-card p-3 px-6 flex items-center gap-2 text-sm font-medium text-foreground hover:bg-foreground/5 transition-colors"
+            >
+              <User size={18} />
+              Anthony
+            </button>
+            {showProfileMenu && (
+              <div className="absolute top-full mt-2 right-0 w-48 glass-card border border-primary/20 p-2 z-[100] shadow-2xl animate-fade-in">
+                <button
+                  onClick={handleLogout}
+                  className="w-full text-left px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-destructive/20 transition-colors text-accent-red flex items-center gap-2"
+                >
+                  <LogOut size={14} />
+                  Log Out
+                </button>
+              </div>
+            )}
           </div>
-        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
