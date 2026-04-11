@@ -1,6 +1,6 @@
 import { startWebcam, startUploadedVideo } from './cv_module/capture.js';
 import { FaceLandmarkerManager } from './cv_module/mediapipe_vision.js';
-import { ExternalVisionManager } from './cv_module/external_vision.js';
+import { ExternalVisionManager, CrashDetector } from './cv_module/external_vision.js';
 import { getAverageEAR, getGazeDirection } from './cv_module/metrics/eye_metrics.js';
 import { getHeadPose } from './cv_module/metrics/head_metrics.js';
 import { calculateVisibilityMetrics } from './cv_module/metrics/environmental_metrics.js';
@@ -38,6 +38,7 @@ const liveHazardStateDom = document.getElementById("liveHazardState");
 
 const faceManager = new FaceLandmarkerManager();
 const externalVision = new ExternalVisionManager();
+const crashDetector = new CrashDetector();
 let lastVideoTime = -1;
 let lastVisibilityCheckTime = 0;
 let lastHazardCheckTime = 0;
@@ -182,20 +183,27 @@ function inferenceLoop() {
                 let stringHazard = "clear";
                 if (maxHazardArea > 0.40) stringHazard = "immediate_forward_risk";
                 else if (maxHazardArea > 0.15) stringHazard = "hazard_ahead";
-                
+
+                // Crash detection via TTC (bounding box growth rate)
+                const stringCrash = crashDetector.update(maxHazardArea);
+
                 updateSharedState({
                     external: {
                         forwardHazard: {
                             state: stringHazard,
                             primaryTarget: hazardClass,
                             targetSizeRatio: maxHazardArea
+                        },
+                        crash: {
+                            state: stringCrash
                         }
                     }
                 });
 
                 if (liveHazardStateDom) {
-                    liveHazardStateDom.innerText = `[ ${stringHazard} ] (${maxHazardArea > 0 ? hazardClass + " " + (maxHazardArea*100).toFixed(0) + "%" : "no targets"})`;
-                    liveHazardStateDom.style.color = (stringHazard === "clear") ? "lightgreen" : (stringHazard === "hazard_ahead") ? "orange" : "red";
+                    const crashLabel = stringCrash !== "clear" ? ` | CRASH: ${stringCrash}` : "";
+                    liveHazardStateDom.innerText = `[ ${stringHazard} ] (${maxHazardArea > 0 ? hazardClass + " " + (maxHazardArea*100).toFixed(0) + "%" : "no targets"})${crashLabel}`;
+                    liveHazardStateDom.style.color = stringCrash !== "clear" ? "red" : (stringHazard === "clear") ? "lightgreen" : (stringHazard === "hazard_ahead") ? "orange" : "red";
                 }
             }).catch(e => console.error("TF prediction error: ", e));
         }
@@ -364,11 +372,13 @@ function inferenceLoop() {
         const hazard = CvState.external?.forwardHazard?.state;
         const impairment = CvState.internal?.impairment?.state;
         
+        const distraction = CvState.internal?.distraction?.state;
+        const isDistracted = distraction && distraction !== "attentive";
         const isAnomaly = state !== "awake" || hazard !== "clear" || impairment !== "normal";
-        
+
         // Immediate anomaly logging + clipping
-        if (isAnomaly && !isRecordingAnomaly) {
-            log(`[ANOMALY] ${state} / ${hazard}. Clipping footage...`);
+        if ((isAnomaly || isDistracted) && !isRecordingAnomaly) {
+            log(`[ANOMALY] ${state} / ${hazard} / distraction: ${distraction}. Clipping footage...`);
             handleAnomaly(CvState);
         }
 
@@ -447,8 +457,8 @@ function handleAnomaly(state) {
     };
     
     recorder.start();
-    // Capture 3 seconds of the event
+    // Capture 10 seconds of the event
     setTimeout(() => {
         if (recorder.state === "recording") recorder.stop();
-    }, 3000);
+    }, 10000);
 }

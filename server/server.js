@@ -79,6 +79,7 @@ async function generateEmergencySMS({ driverName, emergencyReason, lat, lng, cvS
     const drowsinessState = cvState.internal?.drowsiness?.state || "unknown"
     const perclos = cvState.internal?.drowsiness?.perclos30s
     const impairmentState = cvState.internal?.impairment?.state || "unknown"
+    const crashState = cvState.external?.crash?.state || "clear"
     const mapsLink = `https://maps.google.com/?q=${lat},${lng}`
     const relationship = contact.relationship || "contact"
     const contactName = contact.name || "Emergency Contact"
@@ -88,6 +89,7 @@ Write a concise, urgent SMS (max 160 chars) to ${contactName} (${relationship} o
 
 Context:
 - Emergency type: ${emergencyReason}
+- Crash state: ${crashState}
 - Drowsiness state: ${drowsinessState}
 ${perclos !== undefined ? `- PERCLOS score: ${perclos}%` : ""}
 - Impairment state: ${impairmentState}
@@ -207,7 +209,10 @@ function checkEmergency(state) {
     const drowsy = state.internal?.drowsiness?.state
     const impairment = state.internal?.impairment?.state
     const hazard = state.external?.forwardHazard?.state
+    const crash = state.external?.crash?.state
 
+    if (crash === "crash_detected") return "CRASH DETECTED"
+    if (crash === "crash_imminent") return "CRASH IMMINENT"
     if (drowsy === "microsleep_risk") return "MICROSLEEP DETECTED"
     if (impairment === "non_responsive_emergency") return "DRIVER NON-RESPONSIVE"
     if (hazard === "immediate_forward_risk") return "FORWARD COLLISION RISK"

@@ -29,6 +29,9 @@ export const CvState = {
         },
         forwardHazard: {
             state: "clear"
+        },
+        crash: {
+            state: "clear"  // "clear" | "crash_imminent" | "crash_detected"
         }
     }
 };
@@ -59,6 +62,9 @@ export function updateSharedState(newStateDelta) {
         }
         if (newStateDelta.external.forwardHazard !== undefined) {
             Object.assign(CvState.external.forwardHazard, newStateDelta.external.forwardHazard);
+        }
+        if (newStateDelta.external.crash !== undefined) {
+            Object.assign(CvState.external.crash, newStateDelta.external.crash);
         }
     }
     
