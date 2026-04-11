@@ -179,6 +179,26 @@ function DashboardPage() {
           </div>
         </div>
       </div>
+      {/* Drowsiness Alert Modal */}
+      {showDrowsinessAlert && (
+        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-background/80 backdrop-blur-sm animate-fade-in">
+          <div className="glass-card p-10 max-w-md w-full mx-4 border-2 border-accent-red/50 text-center space-y-6">
+            <div className="mx-auto w-20 h-20 rounded-full bg-accent-red/20 flex items-center justify-center animate-pulse">
+              <AlertTriangle size={40} className="text-accent-red" />
+            </div>
+            <h2 className="text-2xl font-extrabold text-foreground">Drowsiness Detected!</h2>
+            <p className="text-muted-foreground">
+              Your eye closure ratio has dropped to dangerous levels. Please pull over safely if you feel fatigued.
+            </p>
+            <button
+              onClick={handleAcknowledgeDrowsiness}
+              className="btn-primary w-full text-lg font-bold py-4"
+            >
+              I'm Awake — Dismiss
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
