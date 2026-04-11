@@ -61,7 +61,7 @@ function ReplaysPage() {
         <div className="flex flex-wrap gap-6 items-center">
           <input
             type="text"
-            placeholder="Search trips..."
+            placeholder="Search replays..."
             className="px-6 py-4 bg-foreground/5 border border-foreground/10 rounded-2xl text-foreground focus:outline-none focus:border-primary w-full md:w-64 transition-all font-medium placeholder:text-muted-foreground/50"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
