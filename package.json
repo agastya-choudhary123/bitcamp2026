@@ -16,6 +16,8 @@
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@rollup/rollup-darwin-arm64": "^4.60.1",
+    "@tailwindcss/oxide-darwin-arm64": "^4.2.2",
     "mongodb": "^7.1.1"
   }
 }

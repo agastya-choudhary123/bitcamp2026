@@ -113,32 +113,6 @@ app.post("/user/:username/contact", async (req, res) => {
     }
 })
 
-const { GoogleGenerativeAI } = require("@google/generative-ai");
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-app.get("/report/:driverName", async (req, res) => {
-    try {
-        // Fetch last 30 states for this driver to analyze patterns
-        const logs = await DriverState.find({ driverName: req.params.driverName })
-            .sort({ timestamp: -1 })
-            .limit(30);
-
-        if (logs.length === 0) return res.json({ report: "No drive data found yet." });
-
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const summary = logs.map(l => ({
-            time: new Date(l.timestamp).toLocaleTimeString(),
-            drowsiness: l.internal?.drowsiness?.state,
-            hazard: l.external?.forwardHazard?.state
-        }));
-
-        const prompt = `Analyze these driving logs and generate a safety report for ${req.params.driverName}: ${JSON.stringify(summary)}. Provide actionable safety feedback.`;
-        const result = await model.generateContent(prompt);
-        res.json({ report: result.response.text() });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-})
 
 function checkEmergency(state) {
     const drowsy = state.internal?.drowsiness?.state
