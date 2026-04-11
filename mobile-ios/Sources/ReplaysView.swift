@@ -1,32 +1,21 @@
 import SwiftUI
 
-struct Replay: Identifiable {
-    let id = UUID()
-    let title: String
-    let date: String
-    let duration: String
-    let alerts: Int
-}
-
 struct ReplaysView: View {
     @Environment(\.presentationMode) var presentationMode
+    @AppStorage("activeUsername") private var activeUsername = ""
+    
+    @State private var replays: [NetworkManager.ReplayModel] = []
     @State private var searchText = ""
-    @State private var sortByDate = true
+    @State private var isLoading = false
     
-    let sessions = [
-        Replay(title: "Night Drive to Baltimore", date: "Apr 10, 2026", duration: "45:12", alerts: 3),
-        Replay(title: "Morning Commute", date: "Apr 09, 2026", duration: "22:05", alerts: 0),
-        Replay(title: "Long Haul - Interstate 95", date: "Apr 08, 2026", duration: "135:30", alerts: 12),
-        Replay(title: "Evening Trip", date: "Apr 07, 2026", duration: "15:20", alerts: 1)
-    ]
-    
-    // We force reverse chronological visually since the mock strings above are already logically sorted.
-    // However, we apply the search filter here.
-    var filteredSessions: [Replay] {
-        let sorted = sessions // Assumed chronological (newest first based on array)
+    // Convert to strict reverse chronological based on dates
+    var filteredSessions: [NetworkManager.ReplayModel] {
+        let sorted = replays.sorted { 
+            ($0.sessionStart ?? "") > ($1.sessionStart ?? "") 
+        }
         
         if !searchText.isEmpty {
-            return sorted.filter { $0.title.lowercased().contains(searchText.lowercased()) || $0.date.lowercased().contains(searchText.lowercased()) }
+            return sorted.filter { $0.sessionStart?.lowercased().contains(searchText.lowercased()) == true }
         }
         return sorted
     }
@@ -46,58 +35,67 @@ struct ReplaysView: View {
                     }
                     VStack(alignment: .leading) {
                         Text("Driving Replays").font(.title2).bold()
-                        Text("PAST SESSIONS").font(.caption2).kerning(1).foregroundColor(.sdMuted)
+                        Text("CLOUD HOSTED SESSIONS").font(.caption2).kerning(1).foregroundColor(.sdMuted)
                     }
                 }
                 
-                    HStack {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
-                            .foregroundColor(.sdMuted)
-                        TextField("Filter specific date (e.g., Apr 10)", text: $searchText)
-                            .foregroundColor(.white)
-                    }
-                    .padding(12)
-                    .background(Color.white.opacity(0.05))
-                    .cornerRadius(12)
+                HStack {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .foregroundColor(.sdMuted)
+                    TextField("Filter specific date (e.g., 2026-04-10)", text: $searchText)
+                        .foregroundColor(.white)
+                }
+                .padding(12)
+                .background(Color.white.opacity(0.05))
+                .cornerRadius(12)
                 
-                ScrollView {
-                    VStack(spacing: 16) {
-                        ForEach(filteredSessions) { session in
-                            GlassCard {
-                                VStack(alignment: .leading, spacing: 16) {
-                                    HStack {
-                                        Text(session.title).font(.headline)
-                                        Spacer()
-                                        Text(session.date).font(.caption).foregroundColor(.sdMuted)
-                                    }
-                                    
-                                    HStack {
-                                        Label(session.duration, systemImage: "timer")
-                                            .font(.caption).bold()
-                                            .foregroundColor(.sdPrimary)
-                                            .padding(6)
-                                            .padding(.horizontal, 4)
-                                            .background(Color.sdPrimary.opacity(0.1))
-                                            .cornerRadius(8)
-                                        
-                                        if session.alerts > 0 {
-                                            Label("\(session.alerts)", systemImage: "exclamationmark.triangle")
-                                                .font(.caption).bold()
-                                                .foregroundColor(.sdRed)
-                                                .padding(6)
-                                                .padding(.horizontal, 4)
-                                                .background(Color.sdRed.opacity(0.1))
-                                                .cornerRadius(8)
+                if isLoading {
+                    Spacer()
+                    HStack {
+                        Spacer()
+                        ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        Spacer()
+                    }
+                    Spacer()
+                } else {
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            ForEach(filteredSessions) { session in
+                                GlassCard {
+                                    VStack(alignment: .leading, spacing: 16) {
+                                        HStack {
+                                            Text("Cloud Replay").font(.headline)
+                                            Spacer()
+                                            if let rawTime = session.sessionStart {
+                                                // Simplified date parser for hackathon visual formatting
+                                                Text(String(rawTime.prefix(10))).font(.caption).foregroundColor(.sdMuted)
+                                            }
                                         }
                                         
-                                        Spacer()
-                                        
-                                        Image(systemName: "play.fill")
-                                            .foregroundColor(.white)
-                                            .font(.system(size: 10))
-                                            .padding(10)
-                                            .background(Color.sdPrimary)
-                                            .clipShape(Circle())
+                                        HStack {
+                                            Label("Full Session", systemImage: "timer")
+                                                .font(.caption).bold()
+                                                .foregroundColor(.sdPrimary)
+                                                .padding(6)
+                                                .padding(.horizontal, 4)
+                                                .background(Color.sdPrimary.opacity(0.1))
+                                                .cornerRadius(8)
+                                            
+                                            Spacer()
+                                            
+                                            if let urlString = session.videoUrl, let _ = URL(string: urlString) {
+                                                Image(systemName: "play.fill")
+                                                    .foregroundColor(.white)
+                                                    .font(.system(size: 10))
+                                                    .padding(10)
+                                                    .background(Color.sdPrimary)
+                                                    .clipShape(Circle())
+                                            } else {
+                                                Text("Processing...")
+                                                    .font(.caption)
+                                                    .foregroundColor(.sdMuted)
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -108,5 +106,20 @@ struct ReplaysView: View {
             .padding()
         }
         .navigationBarHidden(true)
+        .onAppear(perform: loadReplays)
+    }
+    
+    func loadReplays() {
+        guard !activeUsername.isEmpty else { return }
+        isLoading = true
+        NetworkManager.shared.request(endpoint: "/replay/\(activeUsername)") { (result: Result<[NetworkManager.ReplayModel], Error>) in
+            isLoading = false
+            switch result {
+            case .success(let fetched):
+                replays = fetched
+            case .failure(let err):
+                print("Failed: \(err)")
+            }
+        }
     }
 }

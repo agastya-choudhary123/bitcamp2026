@@ -21,11 +21,11 @@ const userSchema = new mongoose.Schema({
     name: String,
     username: { type: String, unique: true, required: true },
     password: { type: String, required: true },
-    emergencyContact: {
+    emergencyContacts: [{
         name: String,
         phone: String,
         relationship: String
-    }
+    }]
 })
 
 const User = mongoose.model("User", userSchema)
@@ -62,6 +62,13 @@ const DriverState = mongoose.model("DriverState", new mongoose.Schema({
 }, { timestamps: true }))
 
 const Replay = mongoose.model("Replay", replaySchema)
+
+const reportSchema = new mongoose.Schema({
+    driverName: String,
+    timestamp: { type: Date, default: Date.now },
+    reportText: String
+})
+const Report = mongoose.model("Report", reportSchema)
 
 const { GoogleGenerativeAI } = require("@google/generative-ai")
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
@@ -123,7 +130,7 @@ app.get("/user/:username/contact", async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username })
         if (!user) return res.status(404).json({ error: "User not found" })
-        res.json(user.emergencyContact || {})
+        res.json(user.emergencyContacts || [])
     } catch (e) {
         res.status(500).json({ error: e.message })
     }
@@ -131,17 +138,70 @@ app.get("/user/:username/contact", async (req, res) => {
 
 app.post("/user/:username/contact", async (req, res) => {
     try {
+        console.log(`\n--- CONTACT UPDATE ATTEMPT ---`);
+        console.log(`Username: ${req.params.username}`);
+        console.log(`Body: ${JSON.stringify(req.body, null, 2)}`);
+
         const user = await User.findOneAndUpdate(
             { username: req.params.username },
-            { emergencyContact: req.body },
+            { emergencyContacts: req.body },
             { new: true }
-        )
-        res.json({ success: true, contact: user.emergencyContact })
+        );
+
+        if (!user) {
+            console.log(`❌ FAILED: User ${req.params.username} not found.`);
+            return res.status(404).json({ error: "User not found" });
+        }
+
+        console.log(`✅ SUCCESS: Updated contacts for ${user.username} (Count: ${user.emergencyContacts.length})`);
+        res.json(user.emergencyContacts || []);
+    } catch (e) {
+        console.error(`🚨 SERVER ERROR: ${e.message}`);
+        res.status(500).json({ error: e.message });
+    }
+})
+
+app.get("/report/:driverName", async (req, res) => {
+    try {
+        const reports = await Report.find({ driverName: req.params.driverName })
+            .sort({ timestamp: -1 })
+        res.json(reports)
     } catch (e) {
         res.status(500).json({ error: e.message })
     }
 })
 
+app.post("/report/generate", async (req, res) => {
+    try {
+        const { driverName } = req.body
+        const logs = await DriverState.find({ driverName: driverName })
+            .sort({ timestamp: -1 })
+            .limit(30);
+
+        if (logs.length === 0) return res.json({ success: true, message: "Not enough data" });
+
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const summary = logs.map(l => ({
+            time: new Date(l.timestamp).toLocaleTimeString(),
+            drowsiness: l.internal?.drowsiness?.state,
+            hazard: l.external?.forwardHazard?.state
+        }));
+
+        const prompt = `Analyze these driving logs and generate a safety report for ${driverName}: ${JSON.stringify(summary)}. Provide actionable safety feedback, keep it very concise.`;
+        const result = await model.generateContent(prompt);
+        const reportString = result.response.text();
+        
+        const newReport = new Report({
+            driverName: driverName,
+            reportText: reportString
+        });
+        await newReport.save();
+        
+        res.json({ success: true, report: newReport });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+})
 
 function checkEmergency(state) {
     const drowsy = state.internal?.drowsiness?.state
@@ -183,29 +243,39 @@ app.post("/state", async (req, res) => {
         console.log("Video clip saved:", result.secure_url)
     }
 
-    let emergencySMS = null
+    let emergencySMSLog = []
     if (emergencyTriggered) {
         const user = await User.findOne({ username: driverName })
-        const contact = user?.emergencyContact || {}
-        const contactPhone = contact.phone || "NO CONTACT SET"
-        const contactName = contact.name || "Emergency Services"
-
         const mapsLink = `https://maps.google.com/?q=${lat},${lng}`
+        
         console.log("🚨 EMERGENCY TRIGGERED —", emergencyReason)
         console.log(`Driver: ${driverName}`)
         console.log(`Location: ${mapsLink}`)
-
-        try {
-            emergencySMS = await generateEmergencySMS({ driverName, emergencyReason, lat, lng, cvState, contact })
-            console.log(`SMS TO ${contactName} (${contactPhone}): ${emergencySMS}`)
-        } catch (e) {
-            console.error("Gemini SMS generation failed:", e.message)
-            emergencySMS = `EMERGENCY: ${driverName} needs help. ${emergencyReason}. Location: ${mapsLink}`
-            console.log(`SMS TO ${contactName} (${contactPhone}): ${emergencySMS}`)
+        
+        const contacts = user?.emergencyContacts || []
+        if (contacts.length === 0) {
+            console.log(`ALERT SENT TO: Emergency Services (NO CONTACTS SET)`)
+        } else {
+            // Use Promise.all to handle multiple Gemini calls in parallel
+            await Promise.all(contacts.map(async (contact) => {
+                const contactPhone = contact.phone || "NO PHONE"
+                const contactName = contact.name || "Emergency Contact"
+                
+                try {
+                    const sms = await generateEmergencySMS({ driverName, emergencyReason, lat, lng, cvState, contact })
+                    console.log(`AI SMS BROADCAST TO ${contactName} (${contactPhone}): ${sms}`)
+                    emergencySMSLog.push({ name: contactName, phone: contactPhone, sms })
+                } catch (e) {
+                    console.error(`Gemini SMS generation failed for ${contactName}:`, e.message)
+                    const fallback = `EMERGENCY: ${driverName} needs help. ${emergencyReason}. Location: ${mapsLink}`
+                    console.log(`FALLBACK SMS TO ${contactName}: ${fallback}`)
+                    emergencySMSLog.push({ name: contactName, phone: contactPhone, sms: fallback })
+                }
+            }))
         }
     }
 
-    res.json({ success: true, emergencyTriggered, emergencyReason, emergencySMS })
+    res.json({ success: true, emergencyTriggered, emergencyReason, emergencySMSLog })
 })
 
 app.post("/replay", async (req, res) => {

@@ -6,27 +6,36 @@ class DrowsinessMonitor: ObservableObject {
     @Published var earScore: Double = 0.35
     @Published var history: [Double] = Array(repeating: 0.35, count: 40)
     @Published var isDrowsy: Bool = false
+    @Published var isDataActive: Bool = false
     
     private var timer: Timer?
     
-    init() {
-        startSimulating()
-    }
-    
-    func startSimulating() {
-        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { _ in
-            let fluctuation = (Double.random(in: -0.05...0.05))
-            self.earScore = max(0.15, min(0.45, self.earScore + fluctuation))
-            
-            self.history.removeFirst()
-            self.history.append(self.earScore)
-            
-            if self.earScore < 0.25 {
-                self.isDrowsy = true
-            } else if self.earScore > 0.30 {
-                self.isDrowsy = false
+    func startPolling(username: String) {
+        timer?.invalidate()
+        timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
+            NetworkManager.shared.request(endpoint: "/status/\(username)") { (result: Result<NetworkManager.StatusResponse, Error>) in
+                switch result {
+                case .success(let status):
+                    if let ear = status.ear {
+                        self.earScore = ear
+                        self.history.removeFirst()
+                        self.history.append(ear)
+                        self.isDataActive = true
+                    }
+                    if let triggered = status.emergencyTriggered {
+                        self.isDrowsy = triggered
+                    }
+                case .failure(let err):
+                    print("Polling error: \(err)")
+                    self.isDataActive = false
+                }
             }
         }
+    }
+    
+    func stopPolling() {
+        timer?.invalidate()
+        isDataActive = false
     }
 }
 
@@ -143,12 +152,26 @@ struct DashboardView: View {
     func startDrive() {
         // Here we will eventually start the CV Engine
         isDriving = true
+        let username = UserDefaults.standard.string(forKey: "activeUsername") ?? ""
+        if !username.isEmpty {
+            monitor.startPolling(username: username)
+        }
     }
     
     func stopDrive() {
         // Here we will query backend to generate report, stop camera feed, etc.
         isDriving = false
+        monitor.stopPolling()
         print("Drive Stopped. Generating Report...")
+        
+        let username = UserDefaults.standard.string(forKey: "activeUsername") ?? ""
+        if !username.isEmpty {
+            let payload = ["driverName": username]
+            // We ignore the response since it silently generates in the background
+            NetworkManager.shared.request(endpoint: "/report/generate", method: "POST", body: payload) { (result: Result<NetworkManager.ReportModel, Error>) in
+                // Do nothing, UI handled in ReportsView
+            }
+        }
     }
     
     var header: some View {
@@ -172,6 +195,12 @@ struct DashboardView: View {
                 HStack {
                     Image(systemName: "camera")
                     Text("LIVE VISUAL MONITORING")
+                    Spacer()
+                    if !monitor.isDataActive {
+                        Text("No Live Data")
+                            .font(.caption).bold()
+                            .foregroundColor(.sdRed)
+                    }
                 }
                 .font(.caption2).bold()
                 .foregroundColor(.sdMuted)

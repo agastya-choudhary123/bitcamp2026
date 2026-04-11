@@ -6,6 +6,10 @@ struct LoginView: View {
     
     // Globally attached to UserDefaults
     @AppStorage("isLoggedIn") private var isLoggedIn = false
+    @AppStorage("activeUsername") private var activeUsername = ""
+    
+    @State private var errorMessage = ""
+    @State private var isLoading = false
     
     var body: some View {
         NavigationView {
@@ -37,15 +41,22 @@ struct LoginView: View {
                         VStack(spacing: 20) {
                             InputField(label: "Username", text: $username, placeholder: "johndoe123")
                             InputField(label: "Password", text: $password, placeholder: "••••••••", isSecure: true)
+                            if !errorMessage.isEmpty {
+                                Text(errorMessage)
+                                    .foregroundColor(.sdRed)
+                                    .font(.caption)
+                            }
                             
                             Button(action: { 
-                                // This global variable edit will instantly trigger SafeDriveApp.swift 
-                                // to redraw and swap to MainTabView()
-                                isLoggedIn = true 
+                                login()
                             }) {
                                 HStack {
-                                    Image(systemName: "arrow.right.circle.fill")
-                                    Text("Sign In")
+                                    if isLoading {
+                                        ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                    } else {
+                                        Image(systemName: "arrow.right.circle.fill")
+                                        Text("Sign In")
+                                    }
                                 }
                                 .font(.headline)
                                 .foregroundColor(.white)
@@ -54,6 +65,7 @@ struct LoginView: View {
                                 .background(Color.sdPrimary)
                                 .cornerRadius(16)
                             }
+                            .disabled(isLoading)
                         }
                     }
                     
@@ -72,6 +84,27 @@ struct LoginView: View {
                 .padding(24)
             }
             .navigationBarHidden(true)
+        }
+    }
+    
+    func login() {
+        isLoading = true
+        errorMessage = ""
+        let payload = ["username": username, "password": password]
+        
+        NetworkManager.shared.request(endpoint: "/login", method: "POST", body: payload) { (result: Result<NetworkManager.AuthResponse, Error>) in
+            isLoading = false
+            switch result {
+            case .success(let response):
+                if response.success == true, let user = response.user {
+                    activeUsername = user.username
+                    isLoggedIn = true 
+                } else {
+                    errorMessage = response.error ?? "Login failed."
+                }
+            case .failure(let err):
+                errorMessage = err.localizedDescription
+            }
         }
     }
 }

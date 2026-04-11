@@ -1,106 +1,211 @@
 import SwiftUI
 
-struct Contact: Identifiable {
-    let id = UUID()
-    let name: String
-    let phone: String
-}
-
 struct EmergencyContactsView: View {
-    @State private var contacts = [
-        Contact(name: "Dad", phone: "+1 (555) 123-4567"),
-        Contact(name: "Mom", phone: "+1 (555) 987-6543")
-    ]
+    @AppStorage("activeUsername") private var activeUsername = ""
+    @AppStorage("isLoggedIn") private var isLoggedIn = true
     
-    // State for Add Contact Alert
-    @State private var showingAddContact = false
-    @State private var newName = ""
-    @State private var newPhone = ""
+    @State private var contacts: [NetworkManager.ContactResponse] = []
+    
+    // Form fields for adding new
+    @State private var contactName = ""
+    @State private var contactPhone = ""
+    @State private var contactRelationship = ""
+    
+    @State private var isLoading = false
+    @State private var showSuccess = false
     
     var body: some View {
         NavigationView {
             ZStack {
                 Color.sdBackground.ignoresSafeArea()
                 
-                VStack(spacing: 16) {
+                VStack(spacing: 24) {
                     // Header
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Emergency Setup")
-                            .font(.largeTitle).bold()
-                            .foregroundColor(.white)
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("SOS Circle")
+                                .font(.largeTitle).bold()
+                                .foregroundColor(.white)
+                            
+                            Text("Your safety broadcast list.")
+                                .font(.footnote)
+                                .foregroundColor(.sdMuted)
+                        }
                         
-                        Text("Manage your personal emergency phone numbers.")
-                            .font(.footnote)
-                            .foregroundColor(.sdMuted)
+                        Spacer()
+                        
+                        Button(action: {
+                            isLoggedIn = false
+                            activeUsername = ""
+                        }) {
+                            Text("Logout")
+                                .font(.caption).bold()
+                                .foregroundColor(.white)
+                                .padding(8)
+                                .padding(.horizontal, 10)
+                                .background(Color.sdRed.opacity(0.3))
+                                .cornerRadius(10)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(Color.sdRed, lineWidth: 1)
+                                )
+                        }
                     }
                     .padding(.top, 20)
                     .padding(.horizontal)
-                    .frame(maxWidth: .infinity, alignment: .leading)
                     
-                    // List of Contacts
-                    List {
-                        ForEach(contacts) { contact in
+                    // Add New Form
+                    GlassCard {
+                        VStack(spacing: 12) {
                             HStack {
-                                Image(systemName: "person.crop.circle.fill")
-                                    .font(.system(size: 30))
-                                    .foregroundColor(.sdPrimary)
+                                Image(systemName: "person.badge.plus")
+                                Text("Add to Circle")
+                                    .font(.headline)
+                            }
+                            .foregroundColor(.sdMuted)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            
+                            HStack(spacing: 10) {
+                                InputField(label: "Name", text: $contactName, placeholder: "Mom")
+                                InputField(label: "Phone", text: $contactPhone, placeholder: "555...")
+                            }
+                            
+                            HStack {
+                                InputField(label: "Relation", text: $contactRelationship, placeholder: "Family")
                                 
-                                VStack(alignment: .leading) {
-                                    Text(contact.name)
+                                Button(action: addContactLocal) {
+                                    Image(systemName: "plus")
                                         .font(.headline)
                                         .foregroundColor(.white)
-                                    Text(contact.phone)
-                                        .font(.subheadline)
-                                        .foregroundColor(.sdMuted)
+                                        .padding()
+                                        .background(Color.sdPrimary)
+                                        .cornerRadius(12)
                                 }
+                                .padding(.top, 22)
                             }
-                            .listRowBackground(Color.sdCard)
                         }
-                        .onDelete(perform: deleteContact)
                     }
-                    .scrollContentBackground(.hidden) // Removes default iOS List background
+                    .padding(.horizontal)
                     
-                    // Add Contact Button
-                    Button(action: {
-                        showingAddContact = true
-                    }) {
+                    // Contacts List
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("ACTIVE EMERGENCY RECIPIENTS")
+                            .font(.caption2).bold().kerning(1)
+                            .foregroundColor(.sdMuted)
+                            .padding(.horizontal)
+                        
+                        if contacts.isEmpty {
+                            Spacer()
+                            Text("No contacts added yet.")
+                                .foregroundColor(.sdMuted)
+                                .frame(maxWidth: .infinity, alignment: .center)
+                            Spacer()
+                        } else {
+                            ScrollView {
+                                VStack(spacing: 12) {
+                                    ForEach(contacts) { contact in
+                                        GlassCard {
+                                            HStack {
+                                                VStack(alignment: .leading, spacing: 4) {
+                                                    Text(contact.name ?? "Unknown").font(.headline)
+                                                    Text("\(contact.relationship ?? "") • \(contact.phone ?? "")")
+                                                        .font(.caption)
+                                                        .foregroundColor(.sdMuted)
+                                                }
+                                                Spacer()
+                                                Button(action: { removeContact(contact.id) }) {
+                                                    Image(systemName: "trash")
+                                                        .foregroundColor(.sdRed)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                .padding(.horizontal)
+                            }
+                        }
+                    }
+                    
+                    // Sync Button
+                    Button(action: saveContactsToServer) {
                         HStack {
-                            Image(systemName: "plus.circle.fill")
-                            Text("Add Emergency Contact")
+                            if isLoading {
+                                ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            } else {
+                                Image(systemName: showSuccess ? "checkmark.circle.fill" : "icloud.and.arrow.up")
+                                Text(showSuccess ? "Sync Complete" : "Sync All to Server")
+                            }
                         }
                         .font(.headline)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding()
-                        .background(Color.sdPrimary)
+                        .background(showSuccess ? Color.sdGreen : Color.sdPrimary)
                         .cornerRadius(16)
                     }
-                    .padding()
+                    .padding(.horizontal)
+                    .padding(.bottom)
+                    .disabled(isLoading)
                 }
             }
             .navigationBarHidden(true)
-            .alert("Add Contact", isPresented: $showingAddContact) {
-                TextField("Name", text: $newName)
-                TextField("Phone Number", text: $newPhone)
-                    .keyboardType(.phonePad)
-                
-                Button("Add", action: addContact)
-                Button("Cancel", role: .cancel) {
-                    newName = ""
-                    newPhone = ""
-                }
+            .onAppear(perform: loadContacts)
+        }
+    }
+    
+    func addContactLocal() {
+        guard !contactName.isEmpty && !contactPhone.isEmpty else { return }
+        let newContact = NetworkManager.ContactResponse(name: contactName, phone: contactPhone, relationship: contactRelationship)
+        contacts.append(newContact)
+        
+        // Reset fields
+        contactName = ""
+        contactPhone = ""
+        contactRelationship = ""
+    }
+    
+    func removeContact(_ id: String) {
+        contacts.removeAll { $0.id == id }
+    }
+    
+    func loadContacts() {
+        guard !activeUsername.isEmpty else { return }
+        isLoading = true
+        NetworkManager.shared.request(endpoint: "/user/\(activeUsername)/contact") { (result: Result<[NetworkManager.ContactResponse], Error>) in
+            isLoading = false
+            switch result {
+            case .success(let res):
+                contacts = res
+            case .failure(let err):
+                print("Failed to load contacts: \(err)")
             }
         }
     }
     
-    func deleteContact(at offsets: IndexSet) {
-        contacts.remove(atOffsets: offsets)
-    }
-    
-    func addContact() {
-        guard !newName.isEmpty && !newPhone.isEmpty else { return }
-        contacts.append(Contact(name: newName, phone: newPhone))
-        newName = ""
-        newPhone = ""
+    func saveContactsToServer() {
+        guard !activeUsername.isEmpty else { return }
+        isLoading = true
+        showSuccess = false
+        
+        // Convert array of structs to array of Dictionaries for JSONSerialization
+        let payload = contacts.map { [
+            "name": $0.name ?? "",
+            "phone": $0.phone ?? "",
+            "relationship": $0.relationship ?? ""
+        ]}
+        
+        print("Syncing \(contacts.count) contacts...")
+        
+        NetworkManager.shared.request(endpoint: "/user/\(activeUsername)/contact", method: "POST", body: payload) { (result: Result<[NetworkManager.ContactResponse], Error>) in
+            isLoading = false
+            switch result {
+            case .success(let updated):
+                contacts = updated
+                showSuccess = true
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) { showSuccess = false }
+            case .failure(let err):
+                print("Failed to save contacts: \(err)")
+            }
+        }
     }
 }

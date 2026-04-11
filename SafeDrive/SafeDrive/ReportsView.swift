@@ -1,32 +1,10 @@
 import SwiftUI
 
-struct DriveReport: Identifiable {
-    let id = UUID()
-    let title: String
-    let date: Date
-    let score: Int
-    let timeLogged: String
-}
-
 struct ReportsView: View {
-    @State private var selectedDate = Date()
-    @State private var filterByDate = false
+    @AppStorage("activeUsername") private var activeUsername = ""
     
-    // Mock Data sorted reverse-chronologically by default
-    let allReports = [
-        DriveReport(title: "Night Drive to Baltimore", date: Date(), score: 82, timeLogged: "11:45 PM"),
-        DriveReport(title: "Morning Commute", date: Calendar.current.date(byAdding: .day, value: -1, to: Date())!, score: 98, timeLogged: "8:05 AM"),
-        DriveReport(title: "Long Haul", date: Calendar.current.date(byAdding: .day, value: -2, to: Date())!, score: 75, timeLogged: "1:30 PM")
-    ]
-    
-    var filteredReports: [DriveReport] {
-        let sorted = allReports.sorted { $0.date > $1.date } // Force reverse chronological
-        
-        if filterByDate {
-            return sorted.filter { Calendar.current.isDate($0.date, inSameDayAs: selectedDate) }
-        }
-        return sorted
-    }
+    @State private var reports: [NetworkManager.ReportModel] = []
+    @State private var isLoading = false
     
     var body: some View {
         NavigationView {
@@ -36,67 +14,85 @@ struct ReportsView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     
                     VStack(alignment: .leading) {
-                        Text("Post-Drive Reports").font(.largeTitle).bold().foregroundColor(.white)
-                        Text("ANALYTICS GENERATED AFTER A COMPLETED DRIVE")
+                        Text("Safety Reports").font(.largeTitle).bold().foregroundColor(.white)
+                        Text("AI SUMMARIES GENERATED AFTER EVERY DRIVE")
                             .font(.caption2).kerning(1).foregroundColor(.sdMuted)
                     }
                     .padding(.top)
                     
-                    // Date Filter
-                    HStack {
-                        Toggle(isOn: $filterByDate) {
-                            Text("Filter by specific date")
-                                .font(.subheadline)
-                                .foregroundColor(.white)
+                    if isLoading && reports.isEmpty {
+                        Spacer()
+                        HStack {
+                            Spacer()
+                            ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            Spacer()
                         }
-                        .tint(.sdPrimary)
-                    }
-                    .padding()
-                    .background(Color.white.opacity(0.05))
-                    .cornerRadius(12)
-                    
-                    if filterByDate {
-                        DatePicker("Select Date", selection: $selectedDate, displayedComponents: .date)
-                            .datePickerStyle(.compact)
-                            .colorScheme(.dark)
-                            .padding(.horizontal)
-                    }
-                    
-                    ScrollView {
-                        VStack(spacing: 16) {
-                            if filteredReports.isEmpty {
-                                Text("No reports generated for this day.")
-                                    .foregroundColor(.sdMuted)
-                                    .padding(.top, 40)
-                            } else {
-                                ForEach(filteredReports) { report in
+                        Spacer()
+                    } else if reports.isEmpty {
+                        Spacer()
+                        Text("No reports found. Drive and press 'Stop' to auto-generate an AI Report.")
+                            .font(.subheadline)
+                            .foregroundColor(.sdMuted)
+                            .multilineTextAlignment(.center)
+                            .padding()
+                        Spacer()
+                    } else {
+                        ScrollView {
+                            VStack(spacing: 16) {
+                                ForEach(reports) { report in
                                     GlassCard {
-                                        HStack {
-                                            VStack(alignment: .leading, spacing: 6) {
-                                                Text(report.title).font(.headline).foregroundColor(.white)
-                                                Text(report.timeLogged).font(.caption).foregroundColor(.sdMuted)
+                                        VStack(alignment: .leading, spacing: 12) {
+                                            HStack {
+                                                Image(systemName: "sparkles")
+                                                    .foregroundColor(.sdPrimary)
+                                                
+                                                if let rawTime = report.timestamp {
+                                                    // Parse for visual display
+                                                    Text(String(rawTime.prefix(10)))
+                                                        .font(.headline)
+                                                        .foregroundColor(.white)
+                                                } else {
+                                                    Text("Recent Drive")
+                                                        .font(.headline)
+                                                        .foregroundColor(.white)
+                                                }
+                                                Spacer()
                                             }
                                             
-                                            Spacer()
+                                            Divider().background(Color.sdCardBorder)
                                             
-                                            VStack(alignment: .trailing) {
-                                                Text("Safety Score")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.sdMuted)
-                                                Text("\(report.score)")
-                                                    .font(.title2).bold()
-                                                    .foregroundColor(report.score > 90 ? .sdGreen : .sdYellow)
-                                            }
+                                            Text(report.reportText ?? "Error retrieving AI contents.")
+                                                .font(.subheadline)
+                                                .foregroundColor(.white)
+                                                .lineSpacing(4)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
                                         }
                                     }
                                 }
                             }
+                            .padding(.bottom, 20)
                         }
                     }
                 }
                 .padding()
             }
             .navigationBarHidden(true)
+            .onAppear(perform: loadReports)
+        }
+    }
+    
+    func loadReports() {
+        guard !activeUsername.isEmpty else { return }
+        isLoading = true
+        
+        NetworkManager.shared.request(endpoint: "/report/\(activeUsername)") { (result: Result<[NetworkManager.ReportModel], Error>) in
+            isLoading = false
+            switch result {
+            case .success(let res):
+                self.reports = res
+            case .failure(let err):
+                print("Failed to auto-fetch reports array: \(err.localizedDescription)")
+            }
         }
     }
 }

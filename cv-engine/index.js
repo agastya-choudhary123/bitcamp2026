@@ -14,6 +14,7 @@ const videoElement = document.getElementById("webcam");
 const canvasElement = document.getElementById("overlay");
 const canvasCtx = canvasElement.getContext("2d");
 const startButton = document.getElementById("startButton");
+const cameraSelect = document.getElementById("cameraSource");
 const videoUploadDom = document.getElementById("videoUpload"); // Step 9: Media upload
 const calibrateButton = document.getElementById("calibrateButton");
 const logs = document.getElementById("logs");
@@ -64,6 +65,29 @@ calibrateButton.addEventListener("click", () => {
     log(`Camera alignment calibrated! 0-point offset: Pitch ${baselinePitch.toFixed(1)}, Yaw ${baselineYaw.toFixed(1)}`);
 });
 
+// Populate Cameras on Load
+async function loadCameras() {
+    try {
+        // Request base permissions to expose labels
+        await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(d => d.kind === 'videoinput');
+        
+        cameraSelect.innerHTML = '';
+        videoDevices.forEach(device => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            option.text = device.label || `Camera ${cameraSelect.length + 1}`;
+            cameraSelect.appendChild(option);
+        });
+        
+        log(`Found ${videoDevices.length} camera(s) connected! Use dropdown to select iPhone.`);
+    } catch (e) {
+        log(`Camera access denied or error: ${e.message}`);
+    }
+}
+window.addEventListener('DOMContentLoaded', loadCameras);
+
 startButton.addEventListener("click", async () => {
     startButton.disabled = true;
     
@@ -73,8 +97,14 @@ startButton.addEventListener("click", async () => {
     log("Downloading TensorFlow COCO-SSD models...");
     await externalVision.initialize();
     
-    log("Requesting camera permissions...");
-    currentStream = await navigator.mediaDevices.getUserMedia({ video: true });
+    log("Requesting exact camera feed from selection...");
+    const selectedDeviceId = cameraSelect.value;
+    
+    const constraints = {
+        video: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true
+    };
+    
+    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
     videoElement.srcObject = currentStream;
     videoElement.play();
     
@@ -361,8 +391,11 @@ async function pushLog(state, isAnomaly, clip = null) {
     else if (drowsinessState === "drowsy_warning") drowsinessLevel = 2;
     else if (drowsinessState.includes("fatigue")) drowsinessLevel = 1;
 
+    const driverNameInput = document.getElementById("driver-name-input");
+    const driverName = driverNameInput ? driverNameInput.value : "Anthony";
+
     const payload = {
-        driverName: "Anthony",
+        driverName: driverName,
         timestamp: Date.now(),
         lat: 38.9897, // Match user example
         lng: -76.9378,
