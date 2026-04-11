@@ -2,6 +2,12 @@ require("dotenv").config()
 const express = require("express")
 const cors = require("cors")
 const mongoose = require("mongoose")
+const cloudinary = require("cloudinary").v2
+
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME
+})
+
 
 const app = express()
 app.use(cors())
@@ -25,9 +31,10 @@ const userSchema = new mongoose.Schema({
 const User = mongoose.model("User", userSchema)
 
 const replaySchema = new mongoose.Schema({
-    replayName: String,
+    driverName: String,
     sessionStart: Date,
     sessionEnd: { type: Date, default: Date.now },
+    videoUrl: String,
     states: Array
 })
 
@@ -161,6 +168,18 @@ app.post("/state", async (req, res) => {
     })
     await state.save()
 
+    if (req.body.videoClip) {
+        const result = await cloudinary.uploader.upload(
+            `data:video/webm;base64,${req.body.videoClip}`,
+            {
+                resource_type: "video",
+                upload_preset: process.env.CLOUDINARY_UPLOAD_PRESET,
+                folder: "driveguard-replays"
+            }
+        )
+        console.log("Video clip saved:", result.secure_url)
+    }
+
     if (emergencyTriggered) {
         const user = await User.findOne({ username: driverName })
         const contactPhone = user?.emergencyContact?.phone || "NO CONTACT SET"
@@ -183,6 +202,35 @@ app.post("/replay", async (req, res) => {
     const replay = new Replay(req.body)
     await replay.save()
     res.json({ success: true })
+})
+
+
+app.post("/upload-video", async (req, res) => {
+    const { videoBase64, driverName, sessionStart } = req.body
+
+    try {
+        const result = await cloudinary.uploader.upload(videoBase64, {
+            resource_type: "video",
+            upload_preset: process.env.CLOUDINARY_UPLOAD_PRESET,
+            folder: "driveguard-replays",
+            public_id: `${driverName}-${sessionStart}`
+        })
+
+        const replay = new Replay({
+            driverName,
+            sessionStart: new Date(sessionStart),
+            sessionEnd: new Date(),
+            videoUrl: result.secure_url,
+            states: []
+        })
+        await replay.save()
+
+        res.json({ success: true, videoUrl: result.secure_url })
+
+    } catch (err) {
+        console.error("Upload failed:", err)
+        res.status(500).json({ success: false, error: err.message })
+    }
 })
 
 app.get("/replay/:driverName", async (req, res) => {
