@@ -7,6 +7,7 @@ class DrowsinessMonitor: ObservableObject {
     @Published var history: [Double] = Array(repeating: 0.35, count: 40)
     @Published var isDrowsy: Bool = false
     @Published var isDataActive: Bool = false
+    @Published var errorMessage: String = ""
     
     private var timer: Timer?
     
@@ -23,12 +24,17 @@ class DrowsinessMonitor: ObservableObject {
                         self.history.removeFirst()
                         self.history.append(ear)
                         self.isDataActive = true
+                        self.errorMessage = ""
+                    } else {
+                        self.errorMessage = "No recent data for \(username)"
+                        self.isDataActive = false
                     }
                     if let triggered = status.emergencyTriggered {
                         self.isDrowsy = triggered
                     }
                 case .failure(let err):
                     print("Polling error: \(err)")
+                    self.errorMessage = err.localizedDescription
                     self.isDataActive = false
                 }
             }
@@ -199,7 +205,7 @@ struct DashboardView: View {
                     Text("LIVE VISUAL MONITORING")
                     Spacer()
                     if !monitor.isDataActive {
-                        Text("No Live Data")
+                        Text(monitor.errorMessage.isEmpty ? "No Live Data" : monitor.errorMessage)
                             .font(.caption).bold()
                             .foregroundColor(.sdRed)
                     }

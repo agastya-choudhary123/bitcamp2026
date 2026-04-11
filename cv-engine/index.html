@@ -21,19 +21,19 @@
 <body>
     <h1>Internal & External Driver State</h1>
     <div style="margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
-        <div class="camera-controls">
-            <div class="control-group">
-                <label>Driver Name:</label>
-                <input type="text" id="driver-name-input" placeholder="e.g. Anthony" value="Anthony">
+            <div class="camera-controls">
+                <div class="control-group">
+                    <label>Driver Name:</label>
+                    <input type="text" id="driver-name-input" placeholder="e.g. Anthony" value="Anthony">
+                </div>
+                <div class="control-group">
+                    <label>Select Camera:</label>
+                    <select id="cameraSource">
+                        <option value="">Detecting cameras...</option>
+                    </select>
+                </div>
+                <button id="startButton" class="btn btn-primary">Turn On Camera</button>
             </div>
-            <div class="control-group">
-                <label>Select Camera:</label>
-                <select id="camera-select">
-                    <option value="">Detecting cameras...</option>
-                </select>
-            </div>
-            <button id="camera-btn" class="btn btn-primary">Turn On Camera</button>
-        </div>
         <span>OR UPLOAD VIDEO:</span>
         <input type="file" id="videoUpload" accept="video/*" style="background: #333; padding: 10px; border-radius: 4px;" />
         <button id="calibrateButton" style="background: #2196F3;">Calibrate Center Pose</button>
