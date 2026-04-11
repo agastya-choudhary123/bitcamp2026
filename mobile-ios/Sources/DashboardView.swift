@@ -84,6 +84,8 @@ struct DashboardView: View {
     @State private var isDriving: Bool = false
     @State private var showProfileMenu: Bool = false
     @State private var debugModeEnabled: Bool = false
+    @State private var riskData: NetworkManager.RiskResponse? = nil
+    @State private var riskLoading: Bool = false
 
     @AppStorage("activeUsername") private var activeUsername: String = ""
     @AppStorage("activeName")    private var activeName: String = ""
@@ -282,6 +284,7 @@ struct DashboardView: View {
             VStack(spacing: 16) {
                 cameraCard
                 behaviorStateCard
+                if let risk = riskData { RiskScoreCard(risk: risk, isLoading: riskLoading, onRefresh: fetchRisk) }
                 if debugModeEnabled { debugPanel }
                 stopButton
             }
@@ -456,6 +459,7 @@ struct DashboardView: View {
 
     func startDrive() {
         isDriving = true
+        riskData = nil
         guard !activeUsername.isEmpty else { return }
         monitor.startPolling(username: activeUsername)
     }
@@ -466,6 +470,19 @@ struct DashboardView: View {
         guard !activeUsername.isEmpty else { return }
         let payload = ["driverName": activeUsername]
         NetworkManager.shared.request(endpoint: "/report/generate", method: "POST", body: payload) { (_: Result<NetworkManager.ReportModel, Error>) in }
+        fetchRisk()
+    }
+
+    func fetchRisk() {
+        guard !activeUsername.isEmpty else { return }
+        riskLoading = true
+        NetworkManager.shared.request(endpoint: "/risk/\(activeUsername)") { (result: Result<NetworkManager.RiskResponse, Error>) in
+            riskLoading = false
+            switch result {
+            case .success(let r): riskData = r
+            case .failure(let e): print("Risk fetch failed: \(e)")
+            }
+        }
     }
 
     func logout() {
@@ -474,6 +491,102 @@ struct DashboardView: View {
         UserDefaults.standard.removeObject(forKey: "activeName")
         // Navigate back to login — handled via scene observation in SafeDriveApp
         NotificationCenter.default.post(name: NSNotification.Name("UserDidLogout"), object: nil)
+    }
+}
+
+// MARK: - Risk Score Card
+
+struct RiskScoreCard: View {
+    let risk: NetworkManager.RiskResponse
+    let isLoading: Bool
+    let onRefresh: () -> Void
+
+    var score: Int { risk.score ?? 0 }
+
+    var scoreColor: Color {
+        if score >= 75 { return .sdRed }
+        if score >= 50 { return .sdYellow }
+        if score >= 25 { return .sdPrimary }
+        return .sdGreen
+    }
+
+    var body: some View {
+        GlassCard {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    HStack(spacing: 6) {
+                        Image(systemName: "shield.lefthalf.filled")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.sdPrimary)
+                        Text("RISK SCORE")
+                            .font(.system(size: 10, weight: .semibold))
+                            .kerning(1.5)
+                            .foregroundColor(.sdMuted)
+                    }
+                    Spacer()
+                    Button(action: onRefresh) {
+                        Image(systemName: isLoading ? "arrow.triangle.2.circlepath" : "arrow.clockwise")
+                            .font(.system(size: 13))
+                            .foregroundColor(.sdMuted)
+                            .rotationEffect(isLoading ? .degrees(360) : .zero)
+                            .animation(isLoading ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: isLoading)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                HStack(alignment: .firstTextBaseline, spacing: 8) {
+                    Text("\(score)")
+                        .font(.system(size: 48, weight: .black, design: .rounded))
+                        .foregroundColor(scoreColor)
+                    Text(risk.label ?? "")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(scoreColor)
+                        .padding(.bottom, 4)
+                }
+
+                // Score bar
+                GeometryReader { geo in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(Color.sdCardBorder)
+                            .frame(height: 6)
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(scoreColor)
+                            .frame(width: geo.size.width * CGFloat(score) / 100, height: 6)
+                            .animation(.easeOut(duration: 0.6), value: score)
+                    }
+                }
+                .frame(height: 6)
+
+                if let summary = risk.summary {
+                    Text(summary)
+                        .font(.system(size: 13))
+                        .foregroundColor(.sdMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if let recs = risk.recommendations, !recs.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("TO LOWER YOUR RISK")
+                            .font(.system(size: 9, weight: .bold))
+                            .kerning(1.3)
+                            .foregroundColor(.sdSubtle)
+                        ForEach(recs, id: \.self) { rec in
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.sdGreen)
+                                    .padding(.top, 1)
+                                Text(rec)
+                                    .font(.system(size: 13))
+                                    .foregroundColor(.sdForeground.opacity(0.85))
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

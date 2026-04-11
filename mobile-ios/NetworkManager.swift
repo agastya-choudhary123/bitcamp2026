@@ -50,6 +50,13 @@ class NetworkManager {
         var id: String { _id }
     }
     
+    struct RiskResponse: Codable {
+        let score: Int?
+        let label: String?
+        let summary: String?
+        let recommendations: [String]?
+    }
+
     struct StatusResponse: Codable {
         let driverName: String?
         let ear: Double?
