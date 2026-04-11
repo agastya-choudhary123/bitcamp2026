@@ -13,7 +13,9 @@ class DrowsinessMonitor: ObservableObject {
     func startPolling(username: String) {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            NetworkManager.shared.request(endpoint: "/status/\(username)") { (result: Result<NetworkManager.StatusResponse, Error>) in
+            // Add a cache-buster query parameter to force a fresh fetch every time
+            let timestamp = Int(Date().timeIntervalSince1970)
+            NetworkManager.shared.request(endpoint: "/status/\(username)?t=\(timestamp)") { (result: Result<NetworkManager.StatusResponse, Error>) in
                 switch result {
                 case .success(let status):
                     if let ear = status.ear {
