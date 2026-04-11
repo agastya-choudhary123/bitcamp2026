@@ -46,6 +46,7 @@ let lastLogTime = 0;
 let sessionId = "session_" + Math.random().toString(36).substr(2, 9);
 let currentStream = null;
 let isRecordingAnomaly = false;
+let isLoopRunning = false;
 
 // Calibration tracking for offset dashcams
 let baselinePitch = 0;
@@ -90,27 +91,38 @@ async function loadCameras() {
 window.addEventListener('DOMContentLoaded', loadCameras);
 
 startButton.addEventListener("click", async () => {
-    startButton.disabled = true;
+    try {
+        startButton.disabled = true;
+        
+        log("Downloading FaceLandmarker models...");
+        await faceManager.initialize();
+        log("✅ FaceLandmarker Ready");
     
-    log("Downloading FaceLandmarker models (this may take a few seconds)...");
-    await faceManager.initialize();
-
-    log("Downloading TensorFlow COCO-SSD models...");
-    await externalVision.initialize();
-    
-    log("Requesting exact camera feed from selection...");
-    const selectedDeviceId = cameraSelect.value;
-    
-    const constraints = {
-        video: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true
-    };
-    
-    currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-    videoElement.srcObject = currentStream;
-    videoElement.play();
-    
-    log("Webcam started. Running inference loop!");
-    requestAnimationFrame(inferenceLoop);
+        log("Downloading TensorFlow models...");
+        await externalVision.initialize();
+        log("✅ TensorFlow Ready");
+        
+        log("Requesting exact camera feed from selection...");
+        const selectedDeviceId = cameraSelect.value;
+        
+        const constraints = {
+            video: selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : true
+        };
+        
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        videoElement.srcObject = currentStream;
+        
+        videoElement.onloadedmetadata = () => {
+            videoElement.play();
+            isLoopRunning = true;
+            log("🎬 Video Stream Active. Starting Inference...");
+            requestAnimationFrame(inferenceLoop);
+        };
+    } catch (e) {
+        log(`❌ ERROR STARTING CAMERA: ${e.message}`);
+        console.error(e);
+        startButton.disabled = false;
+    }
 });
 
 // Step 9: Allow uploaded video instead of webcam
@@ -134,6 +146,7 @@ videoUploadDom.addEventListener("change", async (event) => {
 
 // This is the core run-loop that will execute 30 times a second
 function inferenceLoop() {
+    if (!isLoopRunning) return;
     let nowInMs = performance.now();
     
     // Only run inference if there is a new frame to process

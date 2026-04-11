@@ -231,6 +231,9 @@ app.post("/state", async (req, res) => {
 
     const emergencyReason = checkEmergency(cvState)
     const emergencyTriggered = !!emergencyReason
+    
+    // Diagnostic Log
+    console.log(`📸 DATA FROM CAMERA: ${driverName} (EAR: ${cvState.ear?.toFixed(3) || "N/A"})`);
 
     const state = new DriverState({
         ...cvState,
@@ -325,8 +328,16 @@ app.get("/status/:driverName", async (req, res) => {
     try {
         const lastLoc = await DriverState.findOne({ driverName: req.params.driverName })
             .sort({ timestamp: -1 });
-        res.json(lastLoc || {});
+            
+        if (!lastLoc) {
+            console.log(`📱 POLL FROM IPHONE: ${req.params.driverName} -> ❌ NO DATA FOUND`);
+            return res.json({});
+        }
+
+        console.log(`📱 POLL FROM IPHONE: ${req.params.driverName} -> ✅ FOUND (EAR: ${lastLoc.ear?.toFixed(3)})`);
+        res.json(lastLoc);
     } catch (e) {
+        console.error(`🚨 STATUS ERROR: ${e.message}`);
         res.status(500).json({ error: e.message });
     }
 })

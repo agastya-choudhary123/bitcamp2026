@@ -45,6 +45,10 @@ class DrowsinessMonitor: ObservableObject {
         timer?.invalidate()
         isDataActive = false
     }
+    
+    deinit {
+        timer?.invalidate()
+    }
 }
 
 struct CameraPreview: UIViewRepresentable {
