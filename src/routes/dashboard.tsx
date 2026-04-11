@@ -18,6 +18,10 @@ function DashboardPage() {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [earScore, setEarScore] = useState(0.35);
   const [history, setHistory] = useState<number[]>(new Array(40).fill(0.35));
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [showDrowsinessAlert, setShowDrowsinessAlert] = useState(false);
+  const [drowsinessAcknowledged, setDrowsinessAcknowledged] = useState(false);
+  const navigate = Route.useNavigate();
 
   useEffect(() => {
     let stream: MediaStream | null = null;
