@@ -4,6 +4,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { Camera, Activity, AlertTriangle, User, Info, LineChart, Video as VideoIcon, LogOut, Phone } from "lucide-react";
 import WaveformChart from "@/components/WaveformChart";
 import AIReport from "@/components/AIReport";
+import RiskScore from "@/components/RiskScore";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -181,6 +182,7 @@ function DashboardPage() {
         </div>
 
         <div className="space-y-8">
+          <RiskScore />
           <div className="glass-card p-8 flex flex-col items-center justify-center text-center">
             <div className="flex items-center gap-2 mb-6 text-sm font-bold uppercase tracking-wider text-muted-foreground">
               <LineChart size={16} className="text-primary" />

@@ -367,6 +367,50 @@ app.get("/replay/:driverName", requireAuth, async (req, res) => {
     res.json(replays)
 })
 
+app.get("/risk/:driverName", requireAuth, async (req, res) => {
+    try {
+        const logs = await DriverState.find({ driverName: req.params.driverName })
+            .sort({ timestamp: -1 })
+            .limit(30)
+
+        if (logs.length === 0) return res.json({ score: null, recommendations: [] })
+
+        const summary = logs.map(l => ({
+            time: new Date(l.timestamp).toLocaleTimeString(),
+            ear: l.ear?.toFixed(3),
+            perclos: l.perclos,
+            drowsiness: l.internal?.drowsiness?.state,
+            headPitch: l.internal?.distraction?.headPitch,
+            headYaw: l.internal?.distraction?.headYaw,
+            hazard: l.external?.forwardHazard?.state,
+            crash: l.external?.crash?.state,
+            emergency: l.emergencyTriggered
+        }))
+
+        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+        const prompt = `You are a driving safety AI. Analyze these recent driving telemetry logs and return a JSON object with:
+- "score": integer 0-100 (0 = perfectly safe, 100 = extremely dangerous)
+- "label": one of "Safe", "Low Risk", "Moderate Risk", "High Risk", "Critical"
+- "summary": one sentence explaining the score
+- "recommendations": array of 2-4 short, specific, actionable strings the driver can do RIGHT NOW to lower their risk score
+
+Telemetry (most recent first):
+${JSON.stringify(summary, null, 2)}
+
+Respond ONLY with valid JSON. No markdown, no explanation.`
+
+        const result = await model.generateContent(prompt)
+        let text = result.response.text().trim()
+        // Strip markdown code fences if present
+        text = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "")
+        const parsed = JSON.parse(text)
+        res.json(parsed)
+    } catch (e) {
+        console.error("Risk scoring error:", e.message)
+        res.status(500).json({ error: e.message })
+    }
+})
+
 app.listen(3001, () => {
     console.log("Backend running on port 3001")
 })
