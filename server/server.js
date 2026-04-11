@@ -215,17 +215,17 @@ app.post("/report/generate", requireAuth, async (req, res) => {
 })
 
 function checkEmergency(state) {
-    const drowsy = state.internal?.drowsiness?.state
-    const impairment = state.internal?.impairment?.state
-    const hazard = state.external?.forwardHazard?.state
-    const crash = state.external?.crash?.state
+    // New unified behaviorState field
+    const behavior = state.behaviorState;
+    const crash    = state.external?.crash?.state;
+    const hazard   = state.external?.forwardHazard?.state;
 
-    if (crash === "crash_detected") return "CRASH DETECTED"
-    if (crash === "crash_imminent") return "CRASH IMMINENT"
-    if (drowsy === "microsleep_risk") return "MICROSLEEP DETECTED"
-    if (impairment === "non_responsive_emergency") return "DRIVER NON-RESPONSIVE"
-    if (hazard === "immediate_forward_risk") return "FORWARD COLLISION RISK"
-    return null
+    if (crash === "crash_detected")              return "CRASH DETECTED";
+    if (crash === "crash_imminent")              return "CRASH IMMINENT";
+    if (behavior === "microsleep")               return "MICROSLEEP DETECTED";
+    if (behavior === "likely_impaired")          return "DRIVER LIKELY IMPAIRED";
+    if (hazard  === "immediate_forward_risk")    return "FORWARD COLLISION RISK";
+    return null;
 }
 
 app.get("/", (req, res) => {

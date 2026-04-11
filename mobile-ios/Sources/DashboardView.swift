@@ -5,7 +5,6 @@ import Combine
 class DrowsinessMonitor: ObservableObject {
     @Published var earScore: Double = 0.35
     @Published var history: [Double] = Array(repeating: 0.35, count: 40)
-    @Published var isDrowsy: Bool = false
     @Published var isDataActive: Bool = false
     @Published var errorMessage: String = ""
     
@@ -28,9 +27,6 @@ class DrowsinessMonitor: ObservableObject {
                     } else {
                         self.errorMessage = "No recent data for \(username)"
                         self.isDataActive = false
-                    }
-                    if let triggered = status.emergencyTriggered {
-                        self.isDrowsy = triggered
                     }
                 case .failure(let err):
                     print("Polling error: \(err)")
@@ -143,13 +139,6 @@ struct DashboardView: View {
             }
         }
         .navigationBarHidden(true)
-        .alert(isPresented: $monitor.isDrowsy) {
-            Alert(
-                title: Text("Drowsiness Detected!"),
-                message: Text("Please pull over safely if you feel fatigued."),
-                dismissButton: .default(Text("I'm Awake"))
-            )
-        }
         // App Lifecycle Hook
         .onChange(of: scenePhase) { oldPhase, newPhase in
             if newPhase == .inactive || newPhase == .background {

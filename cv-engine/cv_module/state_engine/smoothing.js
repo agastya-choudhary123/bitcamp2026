@@ -1,140 +1,158 @@
 const CLOSURE_THRESHOLD = 0.22;
+const YAWN_THRESHOLD    = 0.50; // MAR above this = yawn event
 const PERCLOS_WINDOW_MS = 30000; // 30 seconds
+const YAWN_WINDOW_MS    = 300000; // 5 minutes
 
 export class TemporalSmoother {
     constructor() {
-        this.history = []; // Stores { timestamp, ear, closed }
+        this.history = []; // { timestamp, ear, closed }
+
+        // Eye closure tracking
         this.currentClosureStart = null;
+        this.blinkTimestamps = [];    // timestamps of completed blinks
+        this.blinkDurations  = [];    // durations of completed blinks (ms)
+
+        // Head pose tracking
         this.currentDistractionStart = null;
-        this.currentFaceMissingStart = null;
-        
-        this.blinkTimestamps = []; // Tracks every blink in the last 60 seconds
-
-        // Progressive Baseline logic
-        this.awakeBaselineEAR = null;
-        this.awakeEARCounter = 0;
-        this.awakeEARAccumulator = 0;
-
-        // Head Jerk Velocity
         this.lastPitch = null;
         this.lastPitchTime = null;
         this.headJerkVelocity = 0;
+
+        // Nod pattern tracking (slow repetitive nods = drowsy/impaired)
+        this.nodEvents = []; // timestamps of nod peaks
+
+        // Face missing tracking
+        this.currentFaceMissingStart = null;
+
+        // Gaze fixation tracking
+        this.currentGazeDeviationStart = null;
+
+        // Yawn tracking
+        this.yawnTimestamps = [];   // timestamps of completed yawn events
+        this.isYawning = false;
+
+        // Phone detection tracking
+        this.currentPhoneDetectedStart = null;
+
+        // Progressive fatigue baseline
+        this.awakeBaselineEAR = null;
+        this.awakeEARCounter = 0;
+        this.awakeEARAccumulator = 0;
     }
 
-    /**
-     * Push a new frame state into the queue and slide the window.
-     */
+    // ─── EAR / PERCLOS ───────────────────────────────────────────────────────
+
     pushEAR(timestamp, ear) {
         const closed = ear < CLOSURE_THRESHOLD;
         this.history.push({ timestamp, ear, closed });
-        
-        // Remove frame data that is fully older than 30 seconds
+
+        // Slide 30s window
         const cutoff = timestamp - PERCLOS_WINDOW_MS;
         while (this.history.length > 0 && this.history[0].timestamp < cutoff) {
             this.history.shift();
         }
 
-        // Track continuous duration for microsleep detection
+        // Blink / microsleep event tracking
         if (closed) {
-            if (!this.currentClosureStart) {
-                this.currentClosureStart = timestamp;
-            }
+            if (!this.currentClosureStart) this.currentClosureStart = timestamp;
         } else {
-            // When eyes RE-OPEN, evaluate if it was a blink
             if (this.currentClosureStart) {
                 const duration = timestamp - this.currentClosureStart;
-                if (duration < 1000) { // If closed less than a second, it's a blink
+                if (duration < 800) {
+                    // Normal blink
                     this.blinkTimestamps.push(timestamp);
+                    this.blinkDurations.push(duration);
                 }
+                this.currentClosureStart = null;
             }
-            this.currentClosureStart = null;
         }
 
-        // Clean out blinks older than 60 seconds
+        // Clean blink history older than 60s
         const blinkCutoff = timestamp - 60000;
         while (this.blinkTimestamps.length > 0 && this.blinkTimestamps[0] < blinkCutoff) {
             this.blinkTimestamps.shift();
+            this.blinkDurations.shift();
         }
 
-        // Establish the Progressive Awake Baseline (Average over first 50 seconds approx)
-        // 50 seconds * 30 FPS = 1500 frames
-        if (this.awakeEARCounter < 1500 && !closed) { 
+        // Progressive baseline (first ~50s of open-eye frames)
+        if (this.awakeEARCounter < 1500 && !closed) {
             this.awakeEARAccumulator += ear;
             this.awakeEARCounter++;
             if (this.awakeEARCounter === 1500) {
                 this.awakeBaselineEAR = this.awakeEARAccumulator / 1500;
-                console.log(`[CV Engine] Awake EAR Baseline stabilized at: ${this.awakeBaselineEAR.toFixed(3)}`);
+                console.log(`[CV Engine] EAR Baseline: ${this.awakeBaselineEAR.toFixed(3)}`);
             }
         }
+    }
+
+    getPERCLOS() {
+        if (this.history.length === 0) return 0;
+        const closed = this.history.filter(r => r.closed).length;
+        return closed / this.history.length;
+    }
+
+    getEyeClosureDurationMs(timestamp) {
+        return this.currentClosureStart ? (timestamp - this.currentClosureStart) : 0;
+    }
+
+    getBlinkRatePerMinute() {
+        return this.blinkTimestamps.length; // window already capped at 60s
+    }
+
+    getAvgBlinkDurationMs() {
+        if (this.blinkDurations.length === 0) return 0;
+        return this.blinkDurations.reduce((a, b) => a + b, 0) / this.blinkDurations.length;
     }
 
     getProgressiveFatigueRatio() {
         if (!this.awakeBaselineEAR || this.history.length === 0) return 1.0;
-        // Average EAR over the last 30 second window
-        const currentAvg = this.history.reduce((sum, record) => sum + record.ear, 0) / this.history.length;
-        return currentAvg / this.awakeBaselineEAR;
+        const avg = this.history.reduce((s, r) => s + r.ear, 0) / this.history.length;
+        return avg / this.awakeBaselineEAR;
     }
 
-    getBlinkRatePerMinute() {
-        return this.blinkTimestamps.length;
-    }
+    // ─── HEAD POSE ───────────────────────────────────────────────────────────
 
-    /**
-     * Calculates Percentage of Eye Closure (PERCLOS) over the 30s window.
-     */
-    getPERCLOS() {
-        if (this.history.length === 0) return 0.0;
-        let closedCount = 0;
-        for (let i = 0; i < this.history.length; i++) {
-            if (this.history[i].closed) closedCount++;
-        }
-        return closedCount / this.history.length;
-    }
-
-    /**
-     * Returns the continuous time in MS that the eyes have been currently closed.
-     */
-    getEyeClosureDurationMs(timestamp) {
-        if (this.currentClosureStart) {
-            return timestamp - this.currentClosureStart;
-        }
-        return 0;
-    }
-
-    /**
-     * Track distraction duration based on dangerous head pose.
-     * We consider looking away (yaw > 15) or looking down (pitch > 15).
-     */
     pushHeadPose(timestamp, pitch, yaw) {
-        // Calculate dPitch/dt (Nod Velocity) in degrees per second
+        // Head jerk velocity (nod speed)
         if (this.lastPitch !== null && this.lastPitchTime !== null) {
-            const dtSeconds = (timestamp - this.lastPitchTime) / 1000;
-            if (dtSeconds > 0) {
-                const velocity = Math.abs(pitch - this.lastPitch) / dtSeconds;
-                // Add smoothing to velocity to avoid 1-frame freakouts
+            const dt = (timestamp - this.lastPitchTime) / 1000;
+            if (dt > 0) {
+                const velocity = Math.abs(pitch - this.lastPitch) / dt;
                 this.headJerkVelocity = (this.headJerkVelocity * 0.7) + (velocity * 0.3);
             }
         }
+
+        // Nod pattern: slow downward snap (pitch increases quickly then returns)
+        if (this.lastPitch !== null) {
+            const delta = pitch - this.lastPitch;
+            if (delta > 8) { // Significant downward nod
+                this.nodEvents.push(timestamp);
+            }
+        }
+        // Keep nod events within 2 minutes
+        const nodCutoff = timestamp - 120000;
+        while (this.nodEvents.length > 0 && this.nodEvents[0] < nodCutoff) this.nodEvents.shift();
+
         this.lastPitch = pitch;
         this.lastPitchTime = timestamp;
 
         const isDistracted = Math.abs(yaw) > 15 || Math.abs(pitch) > 15;
-        
         if (isDistracted) {
-            if (!this.currentDistractionStart) {
-                this.currentDistractionStart = timestamp;
-            }
+            if (!this.currentDistractionStart) this.currentDistractionStart = timestamp;
         } else {
             this.currentDistractionStart = null;
         }
     }
 
     getDistractionDurationMs(timestamp) {
-        if (this.currentDistractionStart) {
-            return timestamp - this.currentDistractionStart;
-        }
-        return 0;
+        return this.currentDistractionStart ? (timestamp - this.currentDistractionStart) : 0;
     }
+
+    getNodFrequency() {
+        return this.nodEvents.length; // nods in last 2 minutes
+    }
+
+    // ─── FACE DETECTION ──────────────────────────────────────────────────────
 
     pushFaceDetected(timestamp, isDetected) {
         if (!isDetected) {
@@ -145,12 +163,60 @@ export class TemporalSmoother {
     }
 
     getFaceMissingDurationMs(timestamp) {
-        if (this.currentFaceMissingStart) {
-            return timestamp - this.currentFaceMissingStart;
+        return this.currentFaceMissingStart ? (timestamp - this.currentFaceMissingStart) : 0;
+    }
+
+    // ─── GAZE FIXATION ───────────────────────────────────────────────────────
+
+    pushGaze(timestamp, gazeRatio) {
+        const isDeviated = gazeRatio < 0.35 || gazeRatio > 0.65;
+        if (isDeviated) {
+            if (!this.currentGazeDeviationStart) this.currentGazeDeviationStart = timestamp;
+        } else {
+            this.currentGazeDeviationStart = null;
         }
-        return 0;
+    }
+
+    getGazeFixationDurationMs(timestamp) {
+        return this.currentGazeDeviationStart ? (timestamp - this.currentGazeDeviationStart) : 0;
+    }
+
+    // ─── YAWN TRACKING ───────────────────────────────────────────────────────
+
+    pushMAR(timestamp, mar) {
+        if (mar > YAWN_THRESHOLD) {
+            if (!this.isYawning) {
+                this.isYawning = true;
+                this.yawnTimestamps.push(timestamp);
+                // Slide 5-minute window
+                const cutoff = timestamp - YAWN_WINDOW_MS;
+                while (this.yawnTimestamps.length > 0 && this.yawnTimestamps[0] < cutoff) {
+                    this.yawnTimestamps.shift();
+                }
+            }
+        } else {
+            this.isYawning = false;
+        }
+    }
+
+    getYawnCountPer5Min() {
+        return this.yawnTimestamps.length;
+    }
+
+    // ─── PHONE DETECTION ─────────────────────────────────────────────────────
+
+    pushPhoneDetected(timestamp, isDetected) {
+        if (isDetected) {
+            if (!this.currentPhoneDetectedStart) this.currentPhoneDetectedStart = timestamp;
+        } else {
+            this.currentPhoneDetectedStart = null;
+        }
+    }
+
+    getPhoneDetectedDurationMs(timestamp) {
+        return this.currentPhoneDetectedStart ? (timestamp - this.currentPhoneDetectedStart) : 0;
     }
 }
 
-// Export a singleton instance we can use inside the inference loop
+// Singleton instance
 export const drowsinessSmoother = new TemporalSmoother();

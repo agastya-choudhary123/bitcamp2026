@@ -5,15 +5,17 @@ import Combine
 class DrowsinessMonitor: ObservableObject {
     @Published var earScore: Double = 0.35
     @Published var history: [Double] = Array(repeating: 0.35, count: 40)
-    @Published var isDrowsy: Bool = false
     @Published var isDataActive: Bool = false
+    @Published var errorMessage: String = ""
     
     private var timer: Timer?
     
     func startPolling(username: String) {
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { _ in
-            NetworkManager.shared.request(endpoint: "/status/\(username)") { (result: Result<NetworkManager.StatusResponse, Error>) in
+            // Add a cache-buster query parameter to force a fresh fetch every time
+            let timestamp = Int(Date().timeIntervalSince1970)
+            NetworkManager.shared.request(endpoint: "/status/\(username)?t=\(timestamp)") { (result: Result<NetworkManager.StatusResponse, Error>) in
                 switch result {
                 case .success(let status):
                     if let ear = status.ear {
@@ -21,12 +23,14 @@ class DrowsinessMonitor: ObservableObject {
                         self.history.removeFirst()
                         self.history.append(ear)
                         self.isDataActive = true
-                    }
-                    if let triggered = status.emergencyTriggered {
-                        self.isDrowsy = triggered
+                        self.errorMessage = ""
+                    } else {
+                        self.errorMessage = "No recent data for \(username)"
+                        self.isDataActive = false
                     }
                 case .failure(let err):
                     print("Polling error: \(err)")
+                    self.errorMessage = err.localizedDescription
                     self.isDataActive = false
                 }
             }
@@ -36,6 +40,10 @@ class DrowsinessMonitor: ObservableObject {
     func stopPolling() {
         timer?.invalidate()
         isDataActive = false
+    }
+    
+    deinit {
+        timer?.invalidate()
     }
 }
 
@@ -131,13 +139,6 @@ struct DashboardView: View {
             }
         }
         .navigationBarHidden(true)
-        .alert(isPresented: $monitor.isDrowsy) {
-            Alert(
-                title: Text("Drowsiness Detected!"),
-                message: Text("Please pull over safely if you feel fatigued."),
-                dismissButton: .default(Text("I'm Awake"))
-            )
-        }
         // App Lifecycle Hook
         .onChange(of: scenePhase) { oldPhase, newPhase in
             if newPhase == .inactive || newPhase == .background {
@@ -197,7 +198,7 @@ struct DashboardView: View {
                     Text("LIVE VISUAL MONITORING")
                     Spacer()
                     if !monitor.isDataActive {
-                        Text("No Live Data")
+                        Text(monitor.errorMessage.isEmpty ? "No Live Data" : monitor.errorMessage)
                             .font(.caption).bold()
                             .foregroundColor(.sdRed)
                     }

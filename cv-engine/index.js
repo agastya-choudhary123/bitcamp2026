@@ -6,7 +6,7 @@ import { getHeadPose } from './cv_module/metrics/head_metrics.js';
 import { calculateVisibilityMetrics } from './cv_module/metrics/environmental_metrics.js';
 import { getMouthAspectRatio } from './cv_module/metrics/mouth_metrics.js';
 import { drowsinessSmoother } from './cv_module/state_engine/smoothing.js';
-import { classifyDrowsiness, classifyDistraction, classifyImpairment } from './cv_module/state_engine/classifiers.js';
+import { classifyBehavior, behaviorSeverity } from './cv_module/state_engine/classifiers.js';
 import { CvState, updateSharedState } from './cv_module/shared_state.js';
 import { DrawingUtils, FaceLandmarker } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.9/+esm';
 
@@ -176,47 +176,38 @@ function inferenceLoop() {
             externalVision.predict(videoElement).then(predictions => {
                 let maxHazardArea = 0;
                 let hazardClass = "none";
+                let phoneDetected = false;
                 
-                // Track relevant road/pedestrian categories
                 for (let p of predictions) {
+                    if (p.class === "cell phone" && p.score > 0.5) { phoneDetected = true; }
                     if (["car", "truck", "bus", "person", "bicycle", "motorcycle"].includes(p.class)) {
-                        // Calculate area as a percentage of the entire video screen
                         const boundingArea = p.bbox[2] * p.bbox[3];
                         const screenArea = videoElement.videoWidth * videoElement.videoHeight;
                         const ratio = boundingArea / (screenArea || 1);
-                        
-                        if (ratio > maxHazardArea) {
-                            maxHazardArea = ratio;
-                            hazardClass = p.class;
-                        }
+                        if (ratio > maxHazardArea) { maxHazardArea = ratio; hazardClass = p.class; }
                     }
                 }
+
+                drowsinessSmoother.pushPhoneDetected(nowInMs, phoneDetected);
                 
-                // Hazard classification heuristics based on Area Ratio (how close it is)
                 let stringHazard = "clear";
                 if (maxHazardArea > 0.40) stringHazard = "immediate_forward_risk";
                 else if (maxHazardArea > 0.15) stringHazard = "hazard_ahead";
 
-                // Crash detection via TTC (bounding box growth rate)
                 const stringCrash = crashDetector.update(maxHazardArea);
 
                 updateSharedState({
                     external: {
-                        forwardHazard: {
-                            state: stringHazard,
-                            primaryTarget: hazardClass,
-                            targetSizeRatio: maxHazardArea
-                        },
-                        crash: {
-                            state: stringCrash
-                        }
+                        forwardHazard: { state: stringHazard, primaryTarget: hazardClass, targetSizeRatio: maxHazardArea },
+                        crash: { state: stringCrash }
                     }
                 });
 
                 if (liveHazardStateDom) {
                     const crashLabel = stringCrash !== "clear" ? ` | CRASH: ${stringCrash}` : "";
-                    liveHazardStateDom.innerText = `[ ${stringHazard} ] (${maxHazardArea > 0 ? hazardClass + " " + (maxHazardArea*100).toFixed(0) + "%" : "no targets"})${crashLabel}`;
-                    liveHazardStateDom.style.color = stringCrash !== "clear" ? "red" : (stringHazard === "clear") ? "lightgreen" : (stringHazard === "hazard_ahead") ? "orange" : "red";
+                    const phoneLabel = phoneDetected ? " 📱PHONE!" : "";
+                    liveHazardStateDom.innerText = `[ ${stringHazard} ] (${maxHazardArea > 0 ? hazardClass + " " + (maxHazardArea*100).toFixed(0) + "%" : "no targets"})${crashLabel}${phoneLabel}`;
+                    liveHazardStateDom.style.color = (stringCrash !== "clear" || phoneDetected) ? "red" : (stringHazard === "clear") ? "lightgreen" : "orange";
                 }
             }).catch(e => console.error("TF prediction error: ", e));
         }
@@ -261,59 +252,72 @@ function inferenceLoop() {
             // --- STEP 5: TEMPORAL SMOOTHING ---
             drowsinessSmoother.pushEAR(nowInMs, ear);
             drowsinessSmoother.pushHeadPose(nowInMs, pose.pitch, pose.yaw);
+            drowsinessSmoother.pushGaze(nowInMs, gazeRatio);
+            drowsinessSmoother.pushMAR(nowInMs, mar);
 
-            const perclos = drowsinessSmoother.getPERCLOS();
-            const closureDuration = drowsinessSmoother.getEyeClosureDurationMs(nowInMs);
-            const distractionDuration = drowsinessSmoother.getDistractionDurationMs(nowInMs);
-            const faceMissingDuration = drowsinessSmoother.getFaceMissingDurationMs(nowInMs);
-            const blinkRate = drowsinessSmoother.getBlinkRatePerMinute();
+            const perclos              = drowsinessSmoother.getPERCLOS();
+            const closureDuration      = drowsinessSmoother.getEyeClosureDurationMs(nowInMs);
+            const distractionDuration  = drowsinessSmoother.getDistractionDurationMs(nowInMs);
+            const faceMissingDuration  = drowsinessSmoother.getFaceMissingDurationMs(nowInMs);
+            const blinkRate            = drowsinessSmoother.getBlinkRatePerMinute();
+            const avgBlinkDuration     = drowsinessSmoother.getAvgBlinkDurationMs();
+            const yawnCount            = drowsinessSmoother.getYawnCountPer5Min();
+            const nodFrequency         = drowsinessSmoother.getNodFrequency();
+            const gazeFixationDuration = drowsinessSmoother.getGazeFixationDurationMs(nowInMs);
+            const progressiveRatio     = drowsinessSmoother.getProgressiveFatigueRatio();
+            const headJerkVelocity     = drowsinessSmoother.headJerkVelocity;
+            const phoneDetectedDuration = drowsinessSmoother.getPhoneDetectedDurationMs(nowInMs);
             
-            const progressiveRatio = drowsinessSmoother.getProgressiveFatigueRatio();
-            const headJerkVelocity = drowsinessSmoother.headJerkVelocity;
-            
-            // --- STEP 7 & 8: STATE CLASSIFICATION ---
-            const stringState = classifyDrowsiness(perclos, closureDuration, progressiveRatio);
-            const stringDistraction = classifyDistraction(pose.pitch, pose.yaw, distractionDuration, faceMissingDuration, gazeRatio, headJerkVelocity);
-            const stringImpairment = classifyImpairment(closureDuration, pose.pitch, distractionDuration, faceMissingDuration);
+            // --- STEP 7: UNIFIED BEHAVIORAL CLASSIFICATION ---
+            const behavior = classifyBehavior({
+                perclos, closureDurationMs: closureDuration, progressiveRatio,
+                blinkRatePerMin: blinkRate, avgBlinkDurationMs: avgBlinkDuration,
+                yawnCount, pitch: pose.pitch, yaw: pose.yaw,
+                headJerkVelocity, nodFrequency,
+                distractionDurationMs: distractionDuration,
+                faceMissingDurationMs: faceMissingDuration,
+                gazeFixationDurationMs: gazeFixationDuration,
+                phoneDetectedDurationMs: phoneDetectedDuration,
+                mar
+            });
+            const severity = behaviorSeverity(behavior);
 
             // Update the shared state output object
             updateSharedState({
-                internal: {
+                metrics: {
+                    ear, perclos, closureDurationMs: closureDuration,
+                    blinkRatePerMin: blinkRate, avgBlinkDurationMs: avgBlinkDuration,
+                    mar, yawnCount,
+                    headPitch: pose.pitch, headYaw: pose.yaw,
+                    headJerkVelocity, nodFrequency,
+                    gazeRatio, gazeFixationDurationMs: gazeFixationDuration,
+                    distractionDurationMs: distractionDuration,
+                    faceMissingDurationMs: faceMissingDuration,
                     faceDetected: true,
-                    drowsiness: {
-                        avgEAR: ear,
-                        perclos30s: perclos,
-                        blinkRatePerMin: blinkRate,
-                        mar: mar,
-                        eyeClosureDurationMs: closureDuration,
-                        state: stringState
-                    },
-                    distraction: {
-                        headPitch: pose.pitch,
-                        headYaw: pose.yaw,
-                        state: stringDistraction
-                    },
-                    impairment: {
-                        state: stringImpairment
-                    }
-                }
+                    phoneDetectedDurationMs: phoneDetectedDuration,
+                    progressiveFatigueRatio: progressiveRatio
+                },
+                behaviorState: behavior,
+                behaviorSeverity: severity
             });
 
-            // --- Update UI Fast ---
+            // --- UI Updates ---
             liveEARDom.innerText = `EAR: ${ear.toFixed(3)}`;
             liveEARDom.style.color = (ear < 0.22) ? "red" : "lightgreen";
             
             livePerclosDom.innerText = `PERCLOS: ${(perclos * 100).toFixed(1)}%`;
             livePerclosDom.style.color = (perclos > 0.15) ? "red" : (perclos > 0.10) ? "orange" : "lightgreen";
             
-            liveBlinksDom.innerText = `BLINKS/MIN: ${blinkRate}`;
-            liveMARDom.innerText = `MAR (Yawn): ${mar.toFixed(3)}`;
-            liveMARDom.style.color = (mar > 0.5) ? "orange" : "white";
+            liveBlinksDom.innerText = `BLINKS/MIN: ${blinkRate} | AVG: ${avgBlinkDuration.toFixed(0)}ms`;
+            liveMARDom.innerText = `MAR: ${mar.toFixed(3)} | YAWNS/5min: ${yawnCount}`;
+            liveMARDom.style.color = (yawnCount >= 2 || mar > 0.5) ? "orange" : "white";
 
-            liveStateDom.innerText = `[ ${stringState} ]`;
-            if (stringState === "microsleep_risk") liveStateDom.style.color = "red";
-            else if (stringState === "drowsy_warning") liveStateDom.style.color = "orange";
-            else if (stringState === "fatigue_suspected" || stringState === "progressive_fatigue") liveStateDom.style.color = "yellow";
+            // Unified state display
+            liveStateDom.innerText = `[ ${behavior.toUpperCase()} ] (sev: ${severity})`;
+            if (severity >= 4) liveStateDom.style.color = "red";
+            else if (severity === 3) liveStateDom.style.color = "orange";
+            else if (severity === 2) liveStateDom.style.color = "yellow";
+            else if (severity === 1) liveStateDom.style.color = "#aaddff";
             else liveStateDom.style.color = "lightgreen";
 
             livePitchDom.innerText = `PITCH: ${pose.pitch.toFixed(1)}`;
@@ -322,20 +326,21 @@ function inferenceLoop() {
             liveYawDom.innerText = `YAW: ${pose.yaw.toFixed(1)}`;
             liveYawDom.style.color = (Math.abs(pose.yaw) > 15) ? "red" : "white";
 
-            liveGazeDom.innerText = `GAZE (Ratio): ${gazeRatio.toFixed(2)}`;
-            liveGazeDom.style.color = (gazeRatio < 0.35 || gazeRatio > 0.65) ? "red" : "white";
+            liveGazeDom.innerText = `GAZE: ${gazeRatio.toFixed(2)} | FIX: ${(gazeFixationDuration/1000).toFixed(1)}s`;
+            liveGazeDom.style.color = (gazeFixationDuration > 2000) ? "red" : (gazeRatio < 0.35 || gazeRatio > 0.65) ? "orange" : "white";
             
-            liveNodDom.innerText = `VELOCITY: ${headJerkVelocity.toFixed(0)}°/s`;
-            liveNodDom.style.color = (headJerkVelocity > 60) ? "red" : "white";
+            liveNodDom.innerText = `JERK: ${headJerkVelocity.toFixed(0)}°/s | NODS: ${nodFrequency}`;
+            liveNodDom.style.color = (headJerkVelocity > 60 || nodFrequency > 5) ? "red" : "white";
 
-            liveDistractionStateDom.innerText = `[ ${stringDistraction} ]`;
-            if (stringDistraction === "sudden_head_jerk" || stringDistraction === "texting_gaze_detected") liveDistractionStateDom.style.color = "red";
-            else liveDistractionStateDom.style.color = (stringDistraction === "attentive") ? "lightgreen" : "orange";
+            if (liveDistractionStateDom) {
+                liveDistractionStateDom.innerText = `PHONE: ${(phoneDetectedDuration/1000).toFixed(1)}s | DISTRACT: ${(distractionDuration/1000).toFixed(1)}s`;
+                liveDistractionStateDom.style.color = (phoneDetectedDuration > 2000) ? "red" : "white";
+            }
 
-            liveImpairmentStateDom.innerText = `[ ${stringImpairment} ]`;
-            if (stringImpairment === "possible_incapacitation" || stringImpairment === "non_responsive_emergency") liveImpairmentStateDom.style.color = "red";
-            else if (stringImpairment === "possible_impairment") liveImpairmentStateDom.style.color = "orange";
-            else liveImpairmentStateDom.style.color = "lightgreen";
+            if (liveImpairmentStateDom) {
+                liveImpairmentStateDom.innerText = `PROG.RATIO: ${progressiveRatio.toFixed(2)} | FACE-MISS: ${(faceMissingDuration/1000).toFixed(1)}s`;
+                liveImpairmentStateDom.style.color = (progressiveRatio < 0.80) ? "orange" : "white";
+            }
 
             // Draw the graphical mesh (keep this for debugging)
             const drawingUtils = new DrawingUtils(canvasCtx);
@@ -380,18 +385,15 @@ function inferenceLoop() {
             liveImpairmentStateDom.style.color = (stringImpairment === "normal") ? "lightgreen" : "red";
         }
 
-        // --- STEP 12: LOGGING & ANOMALY HANDLING ---
-        const state = CvState.internal?.drowsiness?.state;
+        // --- STEP 12: ANOMALY HANDLING ---
+        const behavior = CvState.behaviorState;
+        const severity = CvState.behaviorSeverity;
         const hazard = CvState.external?.forwardHazard?.state;
-        const impairment = CvState.internal?.impairment?.state;
         
-        const distraction = CvState.internal?.distraction?.state;
-        const isDistracted = distraction && distraction !== "attentive";
-        const isAnomaly = state !== "awake" || hazard !== "clear" || impairment !== "normal";
+        const isAnomaly = severity >= 2 || hazard !== "clear";
 
-        // Immediate anomaly logging + clipping
-        if ((isAnomaly || isDistracted) && !isRecordingAnomaly) {
-            log(`[ANOMALY] ${state} / ${hazard} / distraction: ${distraction}. Clipping footage...`);
+        if (isAnomaly && !isRecordingAnomaly) {
+            log(`[ANOMALY] ${behavior} (sev:${severity}) / hazard: ${hazard}. Clipping footage...`);
             handleAnomaly(CvState);
         }
 
@@ -407,31 +409,20 @@ function inferenceLoop() {
 }
 
 async function pushLog(state, isAnomaly, clip = null) {
-    // Map internal state to drowsinessLevel 0-3
-    const drowsinessState = state.internal?.drowsiness?.state || "awake";
-    let drowsinessLevel = 0;
-    if (drowsinessState === "microsleep_risk") drowsinessLevel = 3;
-    else if (drowsinessState === "drowsy_warning") drowsinessLevel = 2;
-    else if (drowsinessState.includes("fatigue")) drowsinessLevel = 1;
-
     const driverNameInput = document.getElementById("driver-name-input");
     const driverName = driverNameInput ? driverNameInput.value : "Anthony";
 
+    const m = state.metrics || {};
     const payload = {
         driverName: driverName,
         timestamp: Date.now(),
-        lat: 38.9897, // Match user example
+        lat: 38.9897,
         lng: -76.9378,
-        ear: state.internal?.drowsiness?.avgEAR || 0,
-        perclos: Math.round((state.internal?.drowsiness?.perclos30s || 0) * 100),
-        drowsinessLevel: drowsinessLevel,
-        internal: {
-            faceDetected: state.internal?.faceDetected || false,
-            trackingConfidence: 0.95, // Mock confidence
-            drowsiness: state.internal?.drowsiness || {},
-            distraction: state.internal?.distraction || {},
-            impairment: state.internal?.impairment || {}
-        },
+        ear: m.ear || 0,
+        perclos: Math.round((m.perclos || 0) * 100),
+        behaviorState: state.behaviorState || "alert",
+        behaviorSeverity: state.behaviorSeverity || 0,
+        metrics: m,
         external: {
             forwardHazard: state.external?.forwardHazard || {},
             visibility: state.external?.visibility || {}
@@ -440,7 +431,7 @@ async function pushLog(state, isAnomaly, clip = null) {
     };
 
     try {
-        await fetch('http://localhost:3001/state', {
+        await fetch('http://MacBook-Air-886.local:3001/state', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

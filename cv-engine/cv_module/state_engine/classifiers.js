@@ -1,61 +1,100 @@
 /**
- * Maps incoming CV metrics to discrete semantic states based on heuristics.
+ * UNIFIED BEHAVIORAL CLASSIFIER
+ *
+ * Takes a full metrics bundle and emits one of 7 discrete behavioral states.
+ * States are ordered by severity: higher = more urgent action required.
+ *
+ * States:
+ *   "alert"              — Baseline safe. No action.
+ *   "fatigue_early"      — Subtle fatigue signals. Gentle warning.
+ *   "drowsy_critical"    — Clear drowsiness. Strong warning + clip.
+ *   "microsleep"         — Eyes closed >3s or head drop. Immediate SOS.
+ *   "phone_distraction"  — Phone detected + gaze deviation. Alert + clip.
+ *   "visual_distraction" — Sustained gaze/head deviation, no phone. Alert.
+ *   "likely_impaired"    — Convergence of multiple impairment signals. SOS.
  */
-export function classifyDrowsiness(perclos, closureDurationMs, progressiveRatio) {
-    if (closureDurationMs > 3000) return "microsleep_risk";
-    
-    // PERCLOS > 15% is the standard threshold for explicit drowsiness
-    if (closureDurationMs > 1500 || perclos > 0.15) return "drowsy_warning";
-    
-    // Between 10% and 15% is suspicious
-    if (perclos > 0.10) return "fatigue_suspected";
-    
-    // Long-Term Progressive Fatigue Tracking
-    if (progressiveRatio < 0.85) return "progressive_fatigue";
+export function classifyBehavior({
+    perclos,
+    closureDurationMs,
+    progressiveRatio,
+    blinkRatePerMin,
+    avgBlinkDurationMs,
+    yawnCount,
+    pitch,
+    yaw,
+    headJerkVelocity,
+    nodFrequency,
+    distractionDurationMs,
+    faceMissingDurationMs,
+    gazeFixationDurationMs,
+    phoneDetectedDurationMs,
+    mar
+}) {
 
+    // ── MICROSLEEP (highest priority – override everything) ─────────────────
+    // Eyes closed > 3s OR face completely gone > 6s
+    if (closureDurationMs > 3000) return "microsleep";
+    if (faceMissingDurationMs > 6000) return "microsleep";
+
+    // ── LIKELY IMPAIRED ─────────────────────────────────────────────────────
+    // Requires convergence of multiple weak signals (no single trigger)
+    //   - high PERCLOS + erratic jerk + repetitive nods + extended face loss
+    {
+        let impairmentScore = 0;
+        if (perclos > 0.12) impairmentScore++;           // Eyes closing frequently
+        if (headJerkVelocity > 50) impairmentScore++;   // Erratic head movement
+        if (nodFrequency > 6) impairmentScore++;        // Repetitive drowsy nods
+        if (faceMissingDurationMs > 2000) impairmentScore++;  // Face intermittently gone
+        if (avgBlinkDurationMs > 350) impairmentScore++;     // Very long blinks
+        if (progressiveRatio < 0.80) impairmentScore++;      // EAR baseline degraded badly
+        if (impairmentScore >= 4) return "likely_impaired";   // Need 4+ signals
+    }
+
+    // ── PHONE DISTRACTION ───────────────────────────────────────────────────
+    // Phone visible for >2s + gaze fixed downward/sideways
+    if (phoneDetectedDurationMs > 2000 && gazeFixationDurationMs > 1000) {
+        return "phone_distraction";
+    }
+    // Phone alone for >4s is enough
+    if (phoneDetectedDurationMs > 4000) return "phone_distraction";
+
+    // ── DROWSY CRITICAL ─────────────────────────────────────────────────────
+    // PERCLOS > 15%, or closure > 1.5s, or PERCLOS 10%+ with yawn pattern
+    if (closureDurationMs > 1500) return "drowsy_critical";
+    if (perclos > 0.15) return "drowsy_critical";
+    if (perclos > 0.10 && yawnCount >= 2) return "drowsy_critical";
+
+    // ── VISUAL DISTRACTION ──────────────────────────────────────────────────
+    // Head turned away or gaze off-axis for >2s (no phone)
+    if (distractionDurationMs > 2000) return "visual_distraction";
+    if (gazeFixationDurationMs > 2500) return "visual_distraction";
+    // Sudden violent head jerk (micro-sleep nod snap)
+    if (headJerkVelocity > 70) return "visual_distraction";
+
+    // ── FATIGUE EARLY ─────────────────────────────────────────────────────
+    // Subtle progressive signals — any one is enough for a light warning
+    if (perclos > 0.10) return "fatigue_early";
+    if (progressiveRatio < 0.85) return "fatigue_early";
+    if (yawnCount >= 3) return "fatigue_early";
+    if (avgBlinkDurationMs > 300 && blinkRatePerMin < 10) return "fatigue_early";
+    if (nodFrequency > 3) return "fatigue_early";
+
+    // ── ALERT (default) ─────────────────────────────────────────────────────
     return "alert";
 }
 
 /**
- * Maps head orientation to a discrete distraction state.
+ * Maps a behaviorState string to an integer severity level (0–5).
+ * Used for downstream filtering and iOS badge colors.
  */
-export function classifyDistraction(pitch, yaw, distractionDurationMs, faceMissingDurationMs, gazeRatio, headJerkVelocity) {
-    if (faceMissingDurationMs > 2000) {
-        return "face_not_visible";
+export function behaviorSeverity(state) {
+    switch (state) {
+        case "microsleep":          return 5;
+        case "likely_impaired":     return 4;
+        case "drowsy_critical":     return 3;
+        case "phone_distraction":   return 2;
+        case "visual_distraction":  return 2;
+        case "fatigue_early":       return 1;
+        default:                    return 0; // alert
     }
-
-    // Sudden violent micro-sleep nod
-    if (headJerkVelocity > 60) {
-        return "sudden_head_jerk";
-    }
-
-    if (distractionDurationMs > 2000) {
-        if (pitch > 15) return "looking_down";
-        return "looking_away"; // General "Not Attentive" state
-    }
-
-    // Texting Gaze Tracking (Eye Tracking) -> Distracted even if head is forward
-    if (gazeRatio && (gazeRatio < 0.35 || gazeRatio > 0.65)) {
-        if (distractionDurationMs > 1500) {
-            return "texting_gaze_detected";
-        }
-    }
-
-    return "attentive";
-}
-
-/**
- * Maps multi-modal cues into severe impairment/medical distress scenarios.
- */
-export function classifyImpairment(closureDurationMs, pitch, distractionDurationMs, faceMissingDurationMs) {
-    // The driver is slumped over and hasn't opened their eyes
-    if (closureDurationMs > 3000 && pitch > 20) return "possible_incapacitation";
-    
-    // Completely disappeared or eyes closed for > 5 seconds
-    if (closureDurationMs > 5000 || faceMissingDurationMs > 6000) return "non_responsive_emergency";
-
-    // Slumped posture for an extended period of time
-    if (distractionDurationMs > 5000 && pitch > 25) return "possible_impairment";
-
-    return "normal";
 }

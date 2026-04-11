@@ -4,7 +4,7 @@ class NetworkManager {
     static let shared = NetworkManager()
     
     // Extracted from Macbook Ethernet/Wifi for iOS physical device connection!
-    let baseURL = "http://172.23.27.184:3001"
+    let baseURL = "http://MacBook-Air-886.local:3001"
     
     private init() {}
     
