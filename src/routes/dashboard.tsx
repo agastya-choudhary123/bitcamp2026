@@ -53,6 +53,25 @@ function DashboardPage() {
     return () => clearInterval(interval);
   }, []);
 
+  // Show drowsiness popup when score drops below threshold
+  useEffect(() => {
+    if (earScore < 0.25 && !drowsinessAcknowledged) {
+      setShowDrowsinessAlert(true);
+    }
+    if (earScore >= 0.25) {
+      setDrowsinessAcknowledged(false);
+    }
+  }, [earScore, drowsinessAcknowledged]);
+
+  const handleAcknowledgeDrowsiness = () => {
+    setShowDrowsinessAlert(false);
+    setDrowsinessAcknowledged(true);
+  };
+
+  const handleLogout = () => {
+    navigate({ to: "/" });
+  };
+
   const getStatusColor = () => {
     if (earScore < 0.25) return "text-accent-red";
     if (earScore < 0.3) return "text-accent-yellow";
