@@ -5,7 +5,9 @@ const mongoose = require("mongoose")
 const cloudinary = require("cloudinary").v2
 
 cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
 })
 
 
@@ -245,15 +247,29 @@ app.post("/state", async (req, res) => {
     await state.save()
 
     if (req.body.videoClip) {
-        const result = await cloudinary.uploader.upload(
-            `data:video/webm;base64,${req.body.videoClip}`,
-            {
-                resource_type: "video",
-                upload_preset: process.env.CLOUDINARY_UPLOAD_PRESET,
-                folder: "driveguard-replays"
-            }
-        )
-        console.log("Video clip saved:", result.secure_url)
+        try {
+            const result = await cloudinary.uploader.upload(
+                `data:video/webm;base64,${req.body.videoClip}`,
+                {
+                    resource_type: "video",
+                    upload_preset: process.env.CLOUDINARY_UPLOAD_PRESET,
+                    folder: "driveguard-replays"
+                }
+            )
+            console.log("Video clip saved:", result.secure_url)
+            
+            // SAVE TO DATABASE
+            const newReplay = new Replay({
+                driverName: driverName,
+                videoUrl: result.secure_url,
+                sessionStart: new Date(),
+                sessionEnd: new Date()
+            })
+            await newReplay.save()
+            console.log("✅ Replay record created in MongoDB")
+        } catch (uploadError) {
+            console.error("❌ Cloudinary Upload Error:", uploadError.message)
+        }
     }
 
     let emergencySMSLog = []

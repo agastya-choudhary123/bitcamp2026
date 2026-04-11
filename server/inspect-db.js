@@ -28,7 +28,12 @@ async function inspectData() {
         const stateSchema = new mongoose.Schema({
             driverName: String,
             timestamp: { type: Date, default: Date.now },
+            lat: Number,
+            lng: Number,
+            ear: Number,
+            perclos: Number,
             internal: Object,
+            external: Object,
             emergencyTriggered: Boolean
         });
 
@@ -59,13 +64,14 @@ async function inspectData() {
         });
 
         // 5. Dump Video Replays
-        const replays = await Replay.find({}).limit(10);
+        const replays = await Replay.find({}).sort({ sessionEnd: -1 }).limit(10);
         console.log('\n=========================================');
         console.log('📹 CLOUD REPLAYS (Latest 10)');
         console.log('=========================================');
         replays.forEach(v => {
-            console.log(`\n- Driver: ${v.driverName} | Start: ${v.sessionStart}`);
-            console.log(`  URL: ${v.videoUrl}`);
+            const time = v.sessionEnd ? new Date(v.sessionEnd).toLocaleString() : 'N/A';
+            console.log(`\n- Driver: ${v.driverName} | Finished: ${time}`);
+            console.log(`  🔗 URL: ${v.videoUrl}`);
         });
 
         // 6. Dump Telemetry Preview (High Fidelity)
