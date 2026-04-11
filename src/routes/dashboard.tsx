@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { Camera, Activity, AlertTriangle, User, Info, LineChart, Video as VideoIcon } from "lucide-react";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { Camera, Activity, AlertTriangle, User, Info, LineChart, Video as VideoIcon, LogOut } from "lucide-react";
 import WaveformChart from "@/components/WaveformChart";
 
 export const Route = createFileRoute("/dashboard")({
