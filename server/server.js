@@ -233,6 +233,16 @@ app.post("/upload-video", async (req, res) => {
     }
 })
 
+app.get("/status/:driverName", async (req, res) => {
+    try {
+        const lastLoc = await DriverState.findOne({ driverName: req.params.driverName })
+            .sort({ timestamp: -1 })
+        res.json(lastLoc || {})
+    } catch (e) {
+        res.status(500).json({ error: e.message })
+    }
+})
+
 app.get("/replay/:driverName", async (req, res) => {
     const replays = await Replay.find({ driverName: req.params.driverName })
     res.json(replays)

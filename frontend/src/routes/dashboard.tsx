@@ -19,6 +19,10 @@ function DashboardPage() {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [earScore, setEarScore] = useState(0.35);
   const [history, setHistory] = useState<number[]>(new Array(40).fill(0.35));
+  const [perclos, setPerclos] = useState(0.05);
+  const [headPose, setHeadPose] = useState("Stable");
+  const [systemState, setSystemState] = useState("Awake");
+  const [hazardState, setHazardState] = useState("Clear");
   const [userName, setUserName] = useState("Anthony");
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showDrowsinessAlert, setShowDrowsinessAlert] = useState(false);
@@ -30,33 +34,40 @@ function DashboardPage() {
     if (storedName) setUserName(storedName);
   }, []);
 
+  // --- REAL DATA POLLING ---
   useEffect(() => {
-    let stream: MediaStream | null = null;
-    const startCamera = async () => {
+    const fetchStatus = async () => {
+      const username = localStorage.getItem("username") || "Anthony";
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          setIsCameraActive(true);
+        const resp = await fetch(`http://localhost:3001/status/${username}`);
+        const data = await resp.json();
+        
+        if (data.ear !== undefined) {
+          setEarScore(data.ear);
+          setHistory((h) => [...h.slice(1), data.ear]);
+          setPerclos(data.perclos / 100 || 0);
+          
+          // Interpret internal states
+          const dState = data.internal?.drowsiness?.state || "awake";
+          setSystemState(dState.replace(/_/g, " ").toUpperCase());
+          
+          const pitch = data.internal?.distraction?.headPitch || 0;
+          const yaw = data.internal?.distraction?.headYaw || 0;
+          if (Math.abs(pitch) > 15 || Math.abs(yaw) > 15) setHeadPose("Distracted");
+          else setHeadPose("Stable");
+
+          // Interpret external hazards
+          const hState = data.external?.forwardHazard?.state || "clear";
+          setHazardState(hState.replace(/_/g, " ").toUpperCase());
         }
       } catch (err) {
-        console.error("Error accessing camera:", err);
+        console.error("Failed to poll status:", err);
       }
     };
-    startCamera();
-    return () => {
-      stream?.getTracks().forEach((t) => t.stop());
-    };
-  }, []);
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setEarScore((prev) => {
-        const next = Math.max(0.15, Math.min(0.45, prev + (Math.random() - 0.5) * 0.08));
-        setHistory((h) => [...h.slice(1), next]);
-        return next;
-      });
-    }, 500);
+    const interval = setInterval(fetchStatus, 3000); // 3 second polling
+    fetchStatus();
+    
     return () => clearInterval(interval);
   }, []);
 
@@ -89,7 +100,7 @@ function DashboardPage() {
     <div className="p-8 max-w-7xl mx-auto space-y-8 animate-fade-in">
       <header className="flex justify-between items-center">
         <div>
-          <h1 className="text-4xl font-extrabold text-foreground tracking-tight">Driver Dashboard</h1>
+          <h1 className="text-4xl font-extrabold text-foreground tracking-tight">{userName}'s Dashboard</h1>
           <p className="text-muted-foreground mt-1 uppercase tracking-widest text-xs font-semibold">Real-time eye monitoring system</p>
         </div>
         <div className="flex gap-3">
@@ -135,9 +146,12 @@ function DashboardPage() {
               <Camera size={16} className="text-primary" />
               Live Visual Monitoring
             </div>
-            <div className="video-container aspect-video flex items-center justify-center">
-              <video ref={videoRef} autoPlay playsInline className="video-feed" />
-              {!isCameraActive && <p className="text-muted-foreground italic">Activating camera...</p>}
+            <div className="video-container aspect-video flex items-center justify-center bg-black/40 overflow-hidden">
+               {/* Note: This is a placeholder for the CV-Engine overlay if embedded */}
+               <div className="text-center">
+                 <p className="text-muted-foreground italic text-sm">Webcam feed processed by CV Engine</p>
+                 <p className="text-[10px] text-primary mt-1">DATA PIPELINE ACTIVE</p>
+               </div>
             </div>
           </div>
 
@@ -167,22 +181,28 @@ function DashboardPage() {
               ></div>
               <span className={`gauge-value ${getStatusColor()}`}>{earScore.toFixed(3)}</span>
             </div>
-            <p className="text-muted-foreground text-sm px-4">Analyzing eye closure patterns and duration.</p>
+            <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest">{systemState}</p>
           </div>
 
           <div className="glass-card p-6 space-y-4">
-            <h3 className="font-bold text-foreground uppercase text-xs tracking-widest opacity-50">Current Metrics</h3>
-            <div className="flex justify-between items-center py-2 border-b border-foreground/5">
-              <span className="text-muted-foreground text-sm">PERCLOS (every min)</span>
-              <span className="font-mono text-primary">0.05</span>
+            <h3 className="font-bold text-foreground uppercase text-xs tracking-widest opacity-50">Live Telemetry</h3>
+            <div className="flex justify-between items-center py-2 border-b border-white/5">
+              <span className="text-muted-foreground text-sm">PERCLOS</span>
+              <span className="font-mono text-primary font-bold">{(perclos * 100).toFixed(1)}%</span>
             </div>
-            <div className="flex justify-between items-center py-2 border-b border-foreground/5">
+            <div className="flex justify-between items-center py-2 border-b border-white/5">
               <span className="text-muted-foreground text-sm">Head Pose</span>
-              <span className="font-mono text-accent-green">Stable</span>
+              <span className={`font-mono font-bold ${headPose === "Stable" ? "text-accent-green" : "text-accent-yellow"}`}>{headPose}</span>
+            </div>
+            <div className="flex justify-between items-center py-2 border-b border-white/5">
+              <span className="text-muted-foreground text-sm">Road Hazards</span>
+              <span className={`font-mono font-bold ${hazardState === "CLEAR" ? "text-accent-green" : "text-accent-red"}`}>{hazardState}</span>
             </div>
             <div className="flex justify-between items-center py-2">
-              <span className="text-muted-foreground text-sm">System Status</span>
-              <span className="bg-accent-green/20 text-accent-green px-3 py-1 rounded-full text-xs font-bold">ACTIVE</span>
+              <span className="text-muted-foreground text-sm">Safety Status</span>
+              <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-tighter ${systemState === "AWAKE" ? "bg-accent-green/20 text-accent-green" : "bg-accent-red/20 text-accent-red"}`}>
+                {systemState === "AWAKE" ? "NOMINAL" : "CRITICAL"}
+              </span>
             </div>
           </div>
         </div>
