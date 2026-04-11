@@ -63,6 +63,35 @@ const DriverState = mongoose.model("DriverState", new mongoose.Schema({
 
 const Replay = mongoose.model("Replay", replaySchema)
 
+const { GoogleGenerativeAI } = require("@google/generative-ai")
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+
+async function generateEmergencySMS({ driverName, emergencyReason, lat, lng, cvState, contact }) {
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+
+    const drowsinessState = cvState.internal?.drowsiness?.state || "unknown"
+    const perclos = cvState.internal?.drowsiness?.perclos30s
+    const impairmentState = cvState.internal?.impairment?.state || "unknown"
+    const mapsLink = `https://maps.google.com/?q=${lat},${lng}`
+    const relationship = contact.relationship || "contact"
+    const contactName = contact.name || "Emergency Contact"
+
+    const prompt = `You are an emergency alert system for a drowsy driving safety app called DriveGuard.
+Write a concise, urgent SMS (max 160 chars) to ${contactName} (${relationship} of ${driverName}).
+
+Context:
+- Emergency type: ${emergencyReason}
+- Drowsiness state: ${drowsinessState}
+${perclos !== undefined ? `- PERCLOS score: ${perclos}%` : ""}
+- Impairment state: ${impairmentState}
+- Location: ${mapsLink}
+
+Write only the SMS message. Be specific, human, and urgent. Include the location link.`
+
+    const result = await model.generateContent(prompt)
+    return result.response.text().trim()
+}
+
 // Auth Endpoints
 app.post("/signup", async (req, res) => {
     try {
@@ -154,22 +183,29 @@ app.post("/state", async (req, res) => {
         console.log("Video clip saved:", result.secure_url)
     }
 
+    let emergencySMS = null
     if (emergencyTriggered) {
         const user = await User.findOne({ username: driverName })
-        const contactPhone = user?.emergencyContact?.phone || "NO CONTACT SET"
-        const contactName = user?.emergencyContact?.name || "Emergency Services"
+        const contact = user?.emergencyContact || {}
+        const contactPhone = contact.phone || "NO CONTACT SET"
+        const contactName = contact.name || "Emergency Services"
 
         const mapsLink = `https://maps.google.com/?q=${lat},${lng}`
         console.log("🚨 EMERGENCY TRIGGERED —", emergencyReason)
         console.log(`Driver: ${driverName}`)
         console.log(`Location: ${mapsLink}`)
-        console.log(`Drowsiness: ${cvState.internal?.drowsiness?.state}`)
-        console.log(`PERCLOS: ${cvState.internal?.drowsiness?.perclos30s}%`)
-        console.log(`Impairment: ${cvState.internal?.impairment?.state}`)
-        console.log(`ALERT SENT TO: ${contactName} (${contactPhone})`)
+
+        try {
+            emergencySMS = await generateEmergencySMS({ driverName, emergencyReason, lat, lng, cvState, contact })
+            console.log(`SMS TO ${contactName} (${contactPhone}): ${emergencySMS}`)
+        } catch (e) {
+            console.error("Gemini SMS generation failed:", e.message)
+            emergencySMS = `EMERGENCY: ${driverName} needs help. ${emergencyReason}. Location: ${mapsLink}`
+            console.log(`SMS TO ${contactName} (${contactPhone}): ${emergencySMS}`)
+        }
     }
 
-    res.json({ success: true, emergencyTriggered, emergencyReason })
+    res.json({ success: true, emergencyTriggered, emergencyReason, emergencySMS })
 })
 
 app.post("/replay", async (req, res) => {
