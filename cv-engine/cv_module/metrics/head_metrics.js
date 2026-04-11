@@ -1,29 +1,49 @@
 /**
- * Extracts approximate Pitch and Yaw of the head by comparing the 
- * relative Z-depths (distance from camera) of specific facial landmarks.
+ * Head pose metrics — derived from MediaPipe face mesh Z-depth differentials.
+ *
+ * Exports:
+ *   getHeadPose(landmarks) — { pitch, yaw, roll } in normalized degree-like units
  */
+
 export function getHeadPose(landmarks) {
-    // Standard MediaPipe Mesh Index points
-    const forehead = landmarks[10];
-    const chin = landmarks[152];
-    const leftCheek = landmarks[234]; // Left side of face (from user perspective)
-    const rightCheek = landmarks[454]; // Right side of face (from user perspective)
+    const forehead    = landmarks[10];
+    const chin        = landmarks[152];
+    const leftCheek   = landmarks[234]; // Left from user's perspective
+    const rightCheek  = landmarks[454]; // Right from user's perspective
 
-    // Calculate face 2D width and height for normalization
-    const faceWidth = Math.sqrt(Math.pow(leftCheek.x - rightCheek.x, 2) + Math.pow(leftCheek.y - rightCheek.y, 2));
-    const faceHeight = Math.sqrt(Math.pow(forehead.x - chin.x, 2) + Math.pow(forehead.y - chin.y, 2));
+    const faceWidth  = Math.sqrt(
+        Math.pow(leftCheek.x - rightCheek.x, 2) +
+        Math.pow(leftCheek.y - rightCheek.y, 2)
+    );
+    const faceHeight = Math.sqrt(
+        Math.pow(forehead.x - chin.x, 2) +
+        Math.pow(forehead.y - chin.y, 2)
+    );
 
-    // YAW (Left/Right)
-    // If looking right, the right cheek is closer to the camera (smaller Z) than the left cheek.
-    const yawRatio = (leftCheek.z - rightCheek.z) / faceWidth; 
-    
-    // PITCH (Up/Down)
-    // If looking down, the forehead is closer to the camera (smaller Z) than the chin.
-    const pitchRatio = (chin.z - forehead.z) / faceHeight;
+    // YAW (Left/Right rotation):
+    // If looking right, right cheek is closer (smaller Z) than left cheek.
+    const yaw = faceWidth > 0
+        ? (leftCheek.z - rightCheek.z) / faceWidth * 100
+        : 0;
 
-    // Convert these ratios into roughly degree-like numbers for easy thresholding
-    return {
-        yaw: yawRatio * 100,
-        pitch: pitchRatio * 100
-    };
+    // PITCH (Up/Down tilt):
+    // If looking down, forehead is closer (smaller Z) than chin.
+    const pitch = faceHeight > 0
+        ? (chin.z - forehead.z) / faceHeight * 100
+        : 0;
+
+    // ROLL (Side tilt / head cocking):
+    // If head tilts right, right eye corner drops below left eye corner (y increases).
+    // Use eye corner Y positions, normalized by inter-eye distance.
+    const leftEyeCorner  = landmarks[33];
+    const rightEyeCorner = landmarks[263];
+    const interEyeDist   = Math.sqrt(
+        Math.pow(leftEyeCorner.x - rightEyeCorner.x, 2) +
+        Math.pow(leftEyeCorner.y - rightEyeCorner.y, 2)
+    );
+    const roll = interEyeDist > 0
+        ? (rightEyeCorner.y - leftEyeCorner.y) / interEyeDist * 100
+        : 0;
+
+    return { pitch, yaw, roll };
 }
