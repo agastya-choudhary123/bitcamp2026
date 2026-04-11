@@ -2,6 +2,12 @@ require("dotenv").config()
 const express = require("express")
 const cors = require("cors")
 const mongoose = require("mongoose")
+const cloudinary = require("cloudinary").v2
+
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME
+})
+
 
 const app = express()
 app.use(cors())
@@ -131,11 +137,6 @@ app.post("/replay", async (req, res) => {
     res.json({ success: true })
 })
 
-const cloudinary = require("cloudinary").v2
-
-cloudinary.config({
-    cloud_name: process.env.CLOUDINARY_CLOUD_NAME
-})
 
 app.post("/upload-video", async (req, res) => {
     const { videoBase64, driverName, sessionStart } = req.body
