@@ -1,28 +1,33 @@
 import SwiftUI
 
-struct Replay: Identifiable {
-    let id = UUID()
-    let title: String
-    let date: String
-    let duration: String
-    let alerts: Int
+struct Replay: Identifiable, Codable {
+    let id: String
+    let replayName: String
+    let sessionStart: String
+    let sessionEnd: String
+    
+    var title: String { replayName }
+    var date: String {
+        let formatter = ISO8601DateFormatter()
+        if let date = formatter.date(from: sessionStart) {
+            let df = DateFormatter()
+            df.dateStyle = .medium
+            return df.string(from: date)
+        }
+        return "Unknown Date"
+    }
 }
 
 struct ReplaysView: View {
     @Environment(\.presentationMode) var presentationMode
     @State private var searchText = ""
     @State private var sortByDate = true
-    
-    let sessions = [
-        Replay(title: "Night Drive to Baltimore", date: "Apr 10, 2026", duration: "45:12", alerts: 3),
-        Replay(title: "Morning Commute", date: "Apr 09, 2026", duration: "22:05", alerts: 0),
-        Replay(title: "Long Haul - Interstate 95", date: "Apr 08, 2026", duration: "135:30", alerts: 12),
-        Replay(title: "Evening Trip", date: "Apr 07, 2026", duration: "15:20", alerts: 1)
-    ]
+    @State private var sessions: [Replay] = []
+    @State private var isLoading = false
     
     var filteredSessions: [Replay] {
         let filtered = sessions.filter { 
-            searchText.isEmpty ? true : $0.title.lowercased().contains(searchText.lowercased()) 
+            searchText.isEmpty ? true : $0.replayName.lowercased().contains(searchText.lowercased()) 
         }
         return sortByDate ? filtered : filtered.reversed()
     }
@@ -78,23 +83,13 @@ struct ReplaysView: View {
                                     }
                                     
                                     HStack {
-                                        Label(session.duration, systemImage: "timer")
+                                        Label("Session Replay", systemImage: "timer")
                                             .font(.caption).bold()
                                             .foregroundColor(.sdPrimary)
                                             .padding(6)
                                             .padding(.horizontal, 4)
                                             .background(Color.sdPrimary.opacity(0.1))
                                             .cornerRadius(8)
-                                        
-                                        if session.alerts > 0 {
-                                            Label("\(session.alerts)", systemImage: "exclamationmark.triangle")
-                                                .font(.caption).bold()
-                                                .foregroundColor(.sdRed)
-                                                .padding(6)
-                                                .padding(.horizontal, 4)
-                                                .background(Color.sdRed.opacity(0.1))
-                                                .cornerRadius(8)
-                                        }
                                         
                                         Spacer()
                                         
@@ -112,7 +107,26 @@ struct ReplaysView: View {
                 }
             }
             .padding()
+            
+            if isLoading {
+                ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .sdPrimary))
+            }
         }
         .navigationBarHidden(true)
+        .onAppear(perform: fetchReplays)
+    }
+
+    func fetchReplays() {
+        isLoading = true
+        let url = URL(string: "http://localhost:3001/replays")!
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            DispatchQueue.main.async {
+                isLoading = false
+                if let data = data,
+                   let decoded = try? JSONDecoder().decode([Replay].self, from: data) {
+                    self.sessions = decoded
+                }
+            }
+        }.resume()
     }
 }

@@ -19,10 +19,16 @@ function DashboardPage() {
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [earScore, setEarScore] = useState(0.35);
   const [history, setHistory] = useState<number[]>(new Array(40).fill(0.35));
+  const [userName, setUserName] = useState("Anthony");
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showDrowsinessAlert, setShowDrowsinessAlert] = useState(false);
   const [drowsinessAcknowledged, setDrowsinessAcknowledged] = useState(false);
   const navigate = Route.useNavigate();
+
+  useEffect(() => {
+    const storedName = localStorage.getItem("driverName");
+    if (storedName) setUserName(storedName);
+  }, []);
 
   useEffect(() => {
     let stream: MediaStream | null = null;
@@ -105,7 +111,7 @@ function DashboardPage() {
               className="glass-card p-3 px-6 flex items-center gap-2 text-sm font-medium text-foreground hover:bg-foreground/5 transition-colors"
             >
               <User size={18} />
-              Anthony
+              {userName}
             </button>
             {showProfileMenu && (
               <div className="absolute top-full mt-2 right-0 w-48 glass-card border border-primary/20 p-2 z-[100] shadow-2xl animate-fade-in">

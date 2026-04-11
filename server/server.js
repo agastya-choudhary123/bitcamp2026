@@ -11,6 +11,19 @@ mongoose.connect(process.env.MONGODB_URI)
     .then(() => console.log("MongoDB connected"))
     .catch(err => console.error("MongoDB error:", err))
 
+const userSchema = new mongoose.Schema({
+    name: String,
+    username: { type: String, unique: true, required: true },
+    password: { type: String, required: true },
+    emergencyContact: {
+        name: String,
+        phone: String,
+        relationship: String
+    }
+})
+
+const User = mongoose.model("User", userSchema)
+
 const replaySchema = new mongoose.Schema({
     replayName: String,
     sessionStart: Date,
@@ -42,6 +55,56 @@ const DriverState = mongoose.model("DriverState", new mongoose.Schema({
 }, { timestamps: true }))
 
 const Replay = mongoose.model("Replay", replaySchema)
+
+// Auth Endpoints
+app.post("/signup", async (req, res) => {
+    try {
+        const { name, username, password } = req.body
+        const existing = await User.findOne({ username })
+        if (existing) return res.status(400).json({ error: "Username already taken" })
+
+        const user = new User({ name, username, password })
+        await user.save()
+        res.json({ success: true, user: { name, username } })
+    } catch (e) {
+        res.status(500).json({ error: e.message })
+    }
+})
+
+app.post("/login", async (req, res) => {
+    try {
+        const { username, password } = req.body
+        const user = await User.findOne({ username, password })
+        if (!user) return res.status(401).json({ error: "Invalid credentials" })
+        res.json({ success: true, user: { name: user.name, username: user.username } })
+    } catch (e) {
+        res.status(500).json({ error: e.message })
+    }
+})
+
+// Emergency Contact Endpoints
+app.get("/user/:username/contact", async (req, res) => {
+    try {
+        const user = await User.findOne({ username: req.params.username })
+        if (!user) return res.status(404).json({ error: "User not found" })
+        res.json(user.emergencyContact || {})
+    } catch (e) {
+        res.status(500).json({ error: e.message })
+    }
+})
+
+app.post("/user/:username/contact", async (req, res) => {
+    try {
+        const user = await User.findOneAndUpdate(
+            { username: req.params.username },
+            { emergencyContact: req.body },
+            { new: true }
+        )
+        res.json({ success: true, contact: user.emergencyContact })
+    } catch (e) {
+        res.status(500).json({ error: e.message })
+    }
+})
 
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
@@ -99,6 +162,10 @@ app.post("/state", async (req, res) => {
     await state.save()
 
     if (emergencyTriggered) {
+        const user = await User.findOne({ username: driverName })
+        const contactPhone = user?.emergencyContact?.phone || "NO CONTACT SET"
+        const contactName = user?.emergencyContact?.name || "Emergency Services"
+
         const mapsLink = `https://maps.google.com/?q=${lat},${lng}`
         console.log("🚨 EMERGENCY TRIGGERED —", emergencyReason)
         console.log(`Driver: ${driverName}`)
@@ -106,7 +173,7 @@ app.post("/state", async (req, res) => {
         console.log(`Drowsiness: ${cvState.internal?.drowsiness?.state}`)
         console.log(`PERCLOS: ${cvState.internal?.drowsiness?.perclos30s}%`)
         console.log(`Impairment: ${cvState.internal?.impairment?.state}`)
-        console.log("SMS sent to emergency contact")
+        console.log(`ALERT SENT TO: ${contactName} (${contactPhone})`)
     }
 
     res.json({ success: true, emergencyTriggered, emergencyReason })

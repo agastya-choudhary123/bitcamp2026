@@ -13,5 +13,9 @@
     "dev:mobile": "npm run start --workspace=mobile-expo",
     "install:all": "npm install",
     "clean": "rm -rf node_modules frontend/node_modules server/node_modules mobile-expo/node_modules"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "mongodb": "^7.1.1"
   }
 }

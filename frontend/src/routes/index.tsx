@@ -15,12 +15,35 @@ export const Route = createFileRoute("/")({
 function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const navigate = Route.useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Logging in...", { username, password });
-    navigate({ to: "/dashboard" });
+    setError(null);
+    setLoading(true);
+    
+    try {
+      const resp = await fetch('http://localhost:3001/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const data = await resp.json();
+      
+      if (data.success) {
+        localStorage.setItem('driverName', data.user.name);
+        localStorage.setItem('username', data.user.username);
+        navigate({ to: "/dashboard" });
+      } else {
+        setError(data.error || "Login failed");
+      }
+    } catch (err) {
+      setError("Could not connect to server");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

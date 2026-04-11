@@ -17,12 +17,44 @@ function EmergencyContactPage() {
   const [phone, setPhone] = useState("");
   const [relationship, setRelationship] = useState("");
   const [saved, setSaved] = useState(false);
+  const [loading, setLoading] = useState(false);
 
-  const handleSave = (e: React.FormEvent) => {
+  const username = localStorage.getItem("username");
+
+  // Fetch contact on load
+  useState(() => {
+    if (!username) return;
+    fetch(`http://localhost:3001/user/${username}/contact`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.name) {
+          setName(data.name);
+          setPhone(data.phone);
+          setRelationship(data.relationship);
+        }
+      });
+  });
+
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Saving emergency contact:", { name, phone, relationship });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    if (!username) return;
+    
+    setLoading(true);
+    try {
+      const resp = await fetch(`http://localhost:3001/user/${username}/contact`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone, relationship })
+      });
+      if (resp.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 3000);
+      }
+    } catch (err) {
+      console.error("Failed to save contact", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (

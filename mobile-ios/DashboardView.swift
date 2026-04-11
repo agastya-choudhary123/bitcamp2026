@@ -58,6 +58,12 @@ struct DashboardView: View {
     @StateObject var monitor = DrowsinessMonitor()
     @Environment(\.presentationMode) var presentationMode
     @State private var showGuide = false
+    @State private var driverName = UserDefaults.standard.string(forKey: "driverName") ?? "Anthony"
+    
+    // AI Report State
+    @State private var report: String?
+    @State private var isGeneratingReport = false
+    @State private var reportError: String?
     
     var body: some View {
         ZStack {
@@ -72,6 +78,8 @@ struct DashboardView: View {
                     earMetric
                     
                     waveformCard
+                    
+                    aiReportSection
                 }
                 .padding()
             }
@@ -86,10 +94,86 @@ struct DashboardView: View {
         }
     }
     
+    var aiReportSection: some View {
+        GlassCard {
+            VStack(spacing: 16) {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Image(systemName: "sparkles")
+                                .foregroundColor(.sdPrimary)
+                            Text("AI SAFETY INSIGHTS").font(.caption).bold()
+                        }
+                        Text("POWERED BY GEMINI 1.5 PRO")
+                            .font(.system(size: 8, weight: .black))
+                            .kerning(1)
+                            .foregroundColor(.sdMuted)
+                    }
+                    Spacer()
+                    
+                    if report == nil && !isGeneratingReport {
+                        Button(action: generateReport) {
+                            Text("Generate")
+                                .font(.caption).bold()
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(Color.sdPrimary)
+                                .cornerRadius(8)
+                        }
+                    }
+                }
+                
+                if isGeneratingReport {
+                    VStack(spacing: 12) {
+                        ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .sdPrimary))
+                        Text("Analyzing drive patterns...").font(.caption).foregroundColor(.sdMuted)
+                    }
+                    .padding()
+                } else if let report = report {
+                    Text(report)
+                        .font(.footnote)
+                        .foregroundColor(.sdForeground.opacity(0.8))
+                        .lineSpacing(6)
+                        .multilineTextAlignment(.leading)
+                    
+                    HStack {
+                        Image(systemName: "shield.fill").foregroundColor(.sdGreen)
+                        Text("SafeDrive Analysis Verified").font(.caption2).bold().foregroundColor(.sdGreen)
+                        Spacer()
+                    }
+                    .padding(.top, 8)
+                } else if let error = reportError {
+                    Text(error).font(.caption).foregroundColor(.sdRed)
+                }
+            }
+        }
+    }
+
+    func generateReport() {
+        guard let username = UserDefaults.standard.string(forKey: "username") else { return }
+        isGeneratingReport = true
+        reportError = nil
+        
+        let url = URL(string: "http://localhost:3001/report/\(username)")!
+        URLSession.shared.dataTask(with: url) { data, _, _ in
+            DispatchQueue.main.async {
+                isGeneratingReport = false
+                if let data = data,
+                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                   let aiReport = json["report"] as? String {
+                    self.report = aiReport
+                } else {
+                    self.reportError = "Failed to generate safety report"
+                }
+            }
+        }.resume()
+    }
+    
     var header: some View {
         HStack {
             VStack(alignment: .leading) {
-                Text("Driver Dashboard")
+                Text("\(driverName)'s Dashboard")
                     .font(.title).bold()
                     .foregroundColor(.sdForeground)
                 Text("REAL-TIME EYE MONITORING")
