@@ -93,7 +93,7 @@ function GuidePage() {
               <tr>
                 <td className="p-6 px-10 font-mono text-accent-red text-lg">{"\u00A0\u00A0>"} 0.12</td>
                 <td className="p-6 px-10 text-foreground font-extrabold text-accent-red">Critical Risk</td>
-                <td className="p-6 px-10 text-accent-red font-bold text-center">Audio Alarm + Contact Trigger.</td>
+                <td className="p-6 px-10 text-accent-red font-bold text-center">Emergency SMS to Contact.</td>
               </tr>
             </tbody>
           </table>
