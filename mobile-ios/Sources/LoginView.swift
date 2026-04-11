@@ -1,110 +1,151 @@
 import SwiftUI
+import Auth0
 
 struct LoginView: View {
-    @State private var username = ""
-    @State private var password = ""
-    
-    // Globally attached to UserDefaults
     @AppStorage("isLoggedIn") private var isLoggedIn = false
     @AppStorage("activeUsername") private var activeUsername = ""
-    
+    @AppStorage("driverName") private var driverName = ""
+
     @State private var errorMessage = ""
     @State private var isLoading = false
-    
+
     var body: some View {
-        NavigationView {
-            ZStack {
-                Color.sdBackground.ignoresSafeArea()
-                
-                VStack(spacing: 32) {
-                    // Logo
-                    VStack(spacing: 16) {
-                        Image(systemName: "shield.checkered")
-                            .font(.system(size: 60))
-                            .foregroundColor(.sdPrimary)
-                            .padding(20)
-                            .background(Color.sdPrimary.opacity(0.15))
-                            .clipShape(RoundedRectangle(cornerRadius: 24))
-                        
-                        Text("SafeDrive AI")
-                            .font(.system(size: 32, weight: .black))
-                            .foregroundColor(.sdForeground)
-                        
-                        Text("Your companion for safe driving.")
-                            .font(.subheadline)
-                            .foregroundColor(.sdMuted)
-                    }
-                    .padding(.top, 40)
-                    
-                    // Form
-                    GlassCard {
-                        VStack(spacing: 20) {
-                            InputField(label: "Username", text: $username, placeholder: "johndoe123")
-                            InputField(label: "Password", text: $password, placeholder: "••••••••", isSecure: true)
-                            if !errorMessage.isEmpty {
-                                Text(errorMessage)
-                                    .foregroundColor(.sdRed)
-                                    .font(.caption)
-                            }
-                            
-                            Button(action: { 
-                                login()
-                            }) {
-                                HStack {
-                                    if isLoading {
-                                        ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
-                                    } else {
-                                        Image(systemName: "arrow.right.circle.fill")
-                                        Text("Sign In")
-                                    }
-                                }
-                                .font(.headline)
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(Color.sdPrimary)
-                                .cornerRadius(16)
-                            }
-                            .disabled(isLoading)
-                        }
-                    }
-                    
-                    NavigationLink(destination: SignupView()) {
-                        HStack(spacing: 4) {
-                            Text("New to SafeDrive? ")
-                                .foregroundColor(.sdMuted)
-                            Text("Create an account")
-                                .foregroundColor(.sdPrimary).bold()
-                        }
-                    }
-                    .font(.footnote)
-                    
-                    Spacer()
+        ZStack {
+            Color.sdBackground.ignoresSafeArea()
+
+            VStack(spacing: 32) {
+                Spacer()
+
+                VStack(spacing: 16) {
+                    Image(systemName: "shield.checkered")
+                        .font(.system(size: 60))
+                        .foregroundColor(.sdPrimary)
+                        .padding(20)
+                        .background(Color.sdPrimary.opacity(0.15))
+                        .clipShape(RoundedRectangle(cornerRadius: 24))
+
+                    Text("SafeDrive AI")
+                        .font(.system(size: 32, weight: .black))
+                        .foregroundColor(.sdForeground)
+
+                    Text("Your companion for safe driving.")
+                        .font(.subheadline)
+                        .foregroundColor(.sdMuted)
                 }
-                .padding(24)
+
+                GlassCard {
+                    VStack(spacing: 16) {
+                        if !errorMessage.isEmpty {
+                            Text(errorMessage)
+                                .foregroundColor(.sdRed)
+                                .font(.caption)
+                                .multilineTextAlignment(.center)
+                        }
+
+                        Button(action: { signIn(screenHint: nil) }) {
+                            HStack {
+                                if isLoading {
+                                    ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                                } else {
+                                    Image(systemName: "arrow.right.circle.fill")
+                                    Text("Sign In")
+                                }
+                            }
+                            .font(.headline)
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.sdPrimary)
+                            .cornerRadius(16)
+                        }
+                        .disabled(isLoading)
+
+                        Button(action: { signIn(screenHint: "signup") }) {
+                            HStack(spacing: 4) {
+                                Text("New to SafeDrive? ")
+                                    .foregroundColor(.sdMuted)
+                                Text("Create an account")
+                                    .foregroundColor(.sdPrimary).bold()
+                            }
+                            .font(.footnote)
+                        }
+                        .disabled(isLoading)
+                    }
+                }
+
+                Spacer()
             }
-            .navigationBarHidden(true)
+            .padding(24)
         }
     }
-    
-    func login() {
+
+    private func signIn(screenHint: String?) {
         isLoading = true
         errorMessage = ""
-        let payload = ["username": username, "password": password]
-        
-        NetworkManager.shared.request(endpoint: "/login", method: "POST", body: payload) { (result: Result<NetworkManager.AuthResponse, Error>) in
-            isLoading = false
-            switch result {
-            case .success(let response):
-                if response.success == true, let user = response.user {
-                    activeUsername = user.username
-                    isLoggedIn = true 
-                } else {
-                    errorMessage = response.error ?? "Login failed."
+
+        var webAuth = Auth0.webAuth()
+        if let hint = screenHint {
+            webAuth = webAuth.parameters(["screen_hint": hint])
+        }
+
+        webAuth.start { result in
+            DispatchQueue.main.async {
+                isLoading = false
+                switch result {
+                case .success(let credentials):
+                    NetworkManager.shared.accessToken = credentials.accessToken
+                    let sub = credentials.idToken // use sub from token or fallback
+                    // Sync user with backend
+                    let name = extractName(from: credentials.idToken) ?? "Driver"
+                    activeUsername = extractSub(from: credentials.idToken) ?? sub
+                    driverName = name
+                    syncWithBackend(name: name)
+                case .failure(let error):
+                    errorMessage = error.localizedDescription
                 }
-            case .failure(let err):
-                errorMessage = err.localizedDescription
             }
         }
+    }
+
+    private func syncWithBackend(name: String) {
+        let body: [String: Any] = ["name": name]
+        NetworkManager.shared.request(endpoint: "/auth/sync", method: "POST", body: body) { (result: Result<NetworkManager.AuthResponse, Error>) in
+            switch result {
+            case .success(let response):
+                if let user = response.user {
+                    activeUsername = user.username
+                    driverName = user.name
+                }
+            case .failure:
+                break // token is valid; proceed anyway
+            }
+            isLoggedIn = true
+        }
+    }
+
+    /// Decode the `name` claim from the JWT id_token (no external lib needed).
+    private func extractName(from idToken: String) -> String? {
+        let parts = idToken.split(separator: ".")
+        guard parts.count == 3 else { return nil }
+        var base64 = String(parts[1])
+        let remainder = base64.count % 4
+        if remainder != 0 { base64 += String(repeating: "=", count: 4 - remainder) }
+        guard let data = Data(base64Encoded: base64),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        return json["name"] as? String ?? json["nickname"] as? String
+    }
+
+    /// Decode the `sub` claim from the JWT id_token.
+    private func extractSub(from idToken: String) -> String? {
+        let parts = idToken.split(separator: ".")
+        guard parts.count == 3 else { return nil }
+        var base64 = String(parts[1])
+        let remainder = base64.count % 4
+        if remainder != 0 { base64 += String(repeating: "=", count: 4 - remainder) }
+        guard let data = Data(base64Encoded: base64),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return nil }
+        return json["sub"] as? String
     }
 }

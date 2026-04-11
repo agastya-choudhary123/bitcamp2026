@@ -1,10 +1,10 @@
 import SwiftUI
+import Auth0
 
 @main
 struct SafeDriveApp: App {
-    // AppStorage binds directly to UserDefaults, persisting the login state across app launches.
     @AppStorage("isLoggedIn") private var isLoggedIn: Bool = false
-    
+
     var body: some Scene {
         WindowGroup {
             if isLoggedIn {
@@ -13,6 +13,10 @@ struct SafeDriveApp: App {
             } else {
                 LoginView()
                     .preferredColorScheme(.dark)
+                    .onAppear {
+                        // Clear any stale token on logout
+                        NetworkManager.shared.accessToken = nil
+                    }
             }
         }
     }

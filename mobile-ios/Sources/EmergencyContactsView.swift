@@ -1,4 +1,5 @@
 import SwiftUI
+import Auth0
 
 struct EmergencyContactsView: View {
     @AppStorage("activeUsername") private var activeUsername = ""
@@ -35,8 +36,11 @@ struct EmergencyContactsView: View {
                         Spacer()
                         
                         Button(action: {
-                            isLoggedIn = false
-                            activeUsername = ""
+                            Auth0.webAuth().clearSession { _ in
+                                NetworkManager.shared.accessToken = nil
+                                isLoggedIn = false
+                                activeUsername = ""
+                            }
                         }) {
                             Text("Logout")
                                 .font(.caption).bold()
