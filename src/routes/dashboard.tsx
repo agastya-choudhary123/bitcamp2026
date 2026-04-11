@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Camera, Activity, AlertTriangle, User, Info, LineChart, Video as VideoIcon, LogOut } from "lucide-react";
+import { Camera, Activity, AlertTriangle, User, Info, LineChart, Video as VideoIcon, LogOut, Phone } from "lucide-react";
 import WaveformChart from "@/components/WaveformChart";
 
 export const Route = createFileRoute("/dashboard")({
@@ -93,6 +93,10 @@ function DashboardPage() {
           <Link to="/guide" className="glass-card p-3 px-6 flex items-center gap-2 text-sm font-medium hover:bg-foreground/5 transition-colors text-foreground">
             <Info size={18} />
             Safety Guide
+          </Link>
+          <Link to="/emergency-contacts" className="glass-card p-3 px-6 flex items-center gap-2 text-sm font-medium hover:bg-foreground/5 transition-colors text-foreground">
+            <Phone size={18} className="text-primary" />
+            Contacts
           </Link>
           <div className="relative">
             <button
