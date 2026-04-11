@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { Sparkles, Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
-import { getSafetyReport } from '../lib/server-functions';
 
 interface AIReportProps {
   sessionId: string;
@@ -12,14 +11,17 @@ const AIReport: React.FC<AIReportProps> = ({ sessionId }) => {
   const [error, setError] = useState<string | null>(null);
 
   const generateReport = async () => {
+    const username = localStorage.getItem("username") || "Anthony";
     setLoading(true);
     setError(null);
     try {
-      const result = await getSafetyReport(sessionId);
-      if (result.report) {
-        setReport(result.report);
-      } else if (result.error) {
-        setError(result.error);
+      const resp = await fetch(`http://localhost:3001/report/${username}`);
+      const data = await resp.json();
+      
+      if (data.report) {
+        setReport(data.report);
+      } else if (data.error) {
+        setError(data.error);
       }
     } catch (err) {
       setError('Failed to connect to safety engine.');
