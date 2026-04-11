@@ -55,7 +55,10 @@ const DriverState = mongoose.model("DriverState", new mongoose.Schema({
     },
     external: {
         forwardHazard: Object,
-        visibility: Object
+        visibility: Object,
+        crash: {
+            state: { type: String, enum: ["clear", "crash_imminent", "crash_detected"], default: "clear" }
+        }
     },
     emergencyTriggered: { type: Boolean, default: false },
     videoClip: String
