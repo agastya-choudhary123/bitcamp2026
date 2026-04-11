@@ -2,6 +2,12 @@ require("dotenv").config()
 const express = require("express")
 const cors = require("cors")
 const mongoose = require("mongoose")
+const { auth } = require("express-oauth2-jwt-bearer")
+
+const requireAuth = auth({
+    audience: process.env.AUTH0_AUDIENCE,
+    issuerBaseURL: process.env.AUTH0_ISSUER_BASE_URL,
+})
 const cloudinary = require("cloudinary").v2
 
 cloudinary.config({
@@ -108,26 +114,22 @@ Write only the SMS message. Be specific, human, and urgent. Include the location
     return result.response.text().trim()
 }
 
-// Auth Endpoints
-app.post("/signup", async (req, res) => {
+// Auth0 callback — upsert user on first login
+// Called by the frontend after Auth0 redirects back with a valid JWT.
+app.post("/auth/sync", requireAuth, async (req, res) => {
     try {
-        const { name, username, password } = req.body
-        const existing = await User.findOne({ username })
-        if (existing) return res.status(400).json({ error: "Username already taken" })
+        const sub = req.auth.payload.sub          // Auth0 user ID (stable, unique)
+        const { name } = req.body                 // display name passed from frontend
 
-        const user = new User({ name, username, password })
-        await user.save()
-        res.json({ success: true, user: { name, username } })
-    } catch (e) {
-        res.status(500).json({ error: e.message })
-    }
-})
+        let user = await User.findOne({ username: sub })
+        if (!user) {
+            user = new User({ name: name || sub, username: sub, password: "" })
+            await user.save()
+        } else if (name && user.name !== name) {
+            user.name = name
+            await user.save()
+        }
 
-app.post("/login", async (req, res) => {
-    try {
-        const { username, password } = req.body
-        const user = await User.findOne({ username, password })
-        if (!user) return res.status(401).json({ error: "Invalid credentials" })
         res.json({ success: true, user: { name: user.name, username: user.username } })
     } catch (e) {
         res.status(500).json({ error: e.message })
@@ -135,7 +137,7 @@ app.post("/login", async (req, res) => {
 })
 
 // Emergency Contact Endpoints
-app.get("/user/:username/contact", async (req, res) => {
+app.get("/user/:username/contact", requireAuth, async (req, res) => {
     try {
         const user = await User.findOne({ username: req.params.username })
         if (!user) return res.status(404).json({ error: "User not found" })
@@ -145,7 +147,7 @@ app.get("/user/:username/contact", async (req, res) => {
     }
 })
 
-app.post("/user/:username/contact", async (req, res) => {
+app.post("/user/:username/contact", requireAuth, async (req, res) => {
     try {
         console.log(`\n--- CONTACT UPDATE ATTEMPT ---`);
         console.log(`Username: ${req.params.username}`);
@@ -170,7 +172,7 @@ app.post("/user/:username/contact", async (req, res) => {
     }
 })
 
-app.get("/report/:driverName", async (req, res) => {
+app.get("/report/:driverName", requireAuth, async (req, res) => {
     try {
         const reports = await Report.find({ driverName: req.params.driverName })
             .sort({ timestamp: -1 })
@@ -180,7 +182,7 @@ app.get("/report/:driverName", async (req, res) => {
     }
 })
 
-app.post("/report/generate", async (req, res) => {
+app.post("/report/generate", requireAuth, async (req, res) => {
     try {
         const { driverName } = req.body
         const logs = await DriverState.find({ driverName: driverName })
@@ -230,7 +232,7 @@ app.get("/", (req, res) => {
     res.json({ status: "DriveGuard backend running" })
 })
 
-app.post("/state", async (req, res) => {
+app.post("/state", requireAuth, async (req, res) => {
     const { driverName, lat, lng, ...cvState } = req.body
 
     const emergencyReason = checkEmergency(cvState)
@@ -307,14 +309,14 @@ app.post("/state", async (req, res) => {
     res.json({ success: true, emergencyTriggered, emergencyReason, emergencySMSLog })
 })
 
-app.post("/replay", async (req, res) => {
+app.post("/replay", requireAuth, async (req, res) => {
     const replay = new Replay(req.body)
     await replay.save()
     res.json({ success: true })
 })
 
 
-app.post("/upload-video", async (req, res) => {
+app.post("/upload-video", requireAuth, async (req, res) => {
     const { videoBase64, driverName, sessionStart } = req.body
 
     try {
@@ -342,7 +344,7 @@ app.post("/upload-video", async (req, res) => {
     }
 })
 
-app.get("/status/:driverName", async (req, res) => {
+app.get("/status/:driverName", requireAuth, async (req, res) => {
     try {
         const lastLoc = await DriverState.findOne({ driverName: req.params.driverName })
             .sort({ timestamp: -1 });
@@ -360,7 +362,7 @@ app.get("/status/:driverName", async (req, res) => {
     }
 })
 
-app.get("/replay/:driverName", async (req, res) => {
+app.get("/replay/:driverName", requireAuth, async (req, res) => {
     const replays = await Replay.find({ driverName: req.params.driverName })
     res.json(replays)
 })

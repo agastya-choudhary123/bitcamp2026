@@ -1,6 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useEffect } from "react";
+import { useAuth0 } from "@auth0/auth0-react";
 import { LogIn, ShieldAlert } from "lucide-react";
+
+const API = "http://localhost:3001";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -13,38 +16,41 @@ export const Route = createFileRoute("/")({
 });
 
 function LoginPage() {
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const navigate = Route.useNavigate();
+  const { loginWithRedirect, isAuthenticated, isLoading, user, getAccessTokenSilently } = useAuth0();
+  const navigate = useNavigate();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-    
-    try {
-      const resp = await fetch('http://localhost:3001/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username, password })
-      });
-      const data = await resp.json();
-      
-      if (data.success) {
-        localStorage.setItem('driverName', data.user.name);
-        localStorage.setItem('username', data.user.username);
-        navigate({ to: "/dashboard" });
-      } else {
-        setError(data.error || "Login failed");
+  useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    (async () => {
+      try {
+        const token = await getAccessTokenSilently();
+        const resp = await fetch(`${API}/auth/sync`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ name: user.name ?? user.nickname ?? "Driver" }),
+        });
+        const data = await resp.json();
+        localStorage.setItem("driverName", data.user?.name ?? user.name ?? "Driver");
+        localStorage.setItem("username", user.sub ?? "");
+      } catch (e) {
+        // fallback: use Auth0 profile directly
+        localStorage.setItem("driverName", user.name ?? user.nickname ?? "Driver");
+        localStorage.setItem("username", user.sub ?? "");
       }
-    } catch (err) {
-      setError("Could not connect to server");
-    } finally {
-      setLoading(false);
-    }
-  };
+      navigate({ to: "/dashboard" });
+    })();
+  }, [isAuthenticated, user]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6">
+        <div className="glass-card p-10 w-full max-w-md animate-fade-in flex flex-col items-center gap-4">
+          <ShieldAlert size={48} className="text-primary animate-pulse" />
+          <p className="text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6">
@@ -57,39 +63,13 @@ function LoginPage() {
           <p className="text-muted-foreground text-center">Your companion for safe, alert driving journeys.</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="flex flex-col space-y-2">
-            <label className="text-sm font-semibold text-muted-foreground ml-1">Username</label>
-            <input
-              type="text"
-              placeholder="Enter your username"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-            />
-          </div>
-          <div className="flex flex-col space-y-2">
-            <label className="text-sm font-semibold text-muted-foreground ml-1">Password</label>
-            <input
-              type="password"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          <button type="submit" className="btn-primary w-full flex items-center justify-center gap-2 mt-4">
-            <LogIn size={20} />
-            Sign In
-          </button>
-        </form>
-
-        <p className="mt-8 text-center text-sm text-muted-foreground">
-          New to SafeDrive?{" "}
-          <Link to="/signup" className="text-primary font-semibold cursor-pointer hover:underline">
-            Create an account
-          </Link>
-        </p>
+        <button
+          onClick={() => loginWithRedirect()}
+          className="btn-primary w-full flex items-center justify-center gap-2 mt-4"
+        >
+          <LogIn size={20} />
+          Sign In
+        </button>
       </div>
     </div>
   );

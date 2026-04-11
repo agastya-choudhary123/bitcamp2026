@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
+import { useAuth0 } from "@auth0/auth0-react";
 import { ArrowLeft, Phone, Save, MessageSquare } from "lucide-react";
 
 export const Route = createFileRoute("/emergency-contacts")({
@@ -13,6 +14,7 @@ export const Route = createFileRoute("/emergency-contacts")({
 });
 
 function EmergencyContactPage() {
+  const { getAccessTokenSilently } = useAuth0();
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [relationship, setRelationship] = useState("");
@@ -24,26 +26,32 @@ function EmergencyContactPage() {
   // Fetch contact on load
   useState(() => {
     if (!username) return;
-    fetch(`http://localhost:3001/user/${username}/contact`)
-      .then(res => res.json())
-      .then(data => {
-        if (data.name) {
-          setName(data.name);
-          setPhone(data.phone);
-          setRelationship(data.relationship);
-        }
-      });
+    (async () => {
+      const token = await getAccessTokenSilently();
+      fetch(`http://localhost:3001/user/${username}/contact`, {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.name) {
+            setName(data.name);
+            setPhone(data.phone);
+            setRelationship(data.relationship);
+          }
+        });
+    })();
   });
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!username) return;
-    
+
     setLoading(true);
     try {
+      const token = await getAccessTokenSilently();
       const resp = await fetch(`http://localhost:3001/user/${username}/contact`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ name, phone, relationship })
       });
       if (resp.ok) {

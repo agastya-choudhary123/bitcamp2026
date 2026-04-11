@@ -1,5 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
+import { useAuth0 } from "@auth0/auth0-react";
 import { Camera, Activity, AlertTriangle, User, Info, LineChart, Video as VideoIcon, LogOut, Phone } from "lucide-react";
 import WaveformChart from "@/components/WaveformChart";
 import AIReport from "@/components/AIReport";
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function DashboardPage() {
+  const { isAuthenticated, isLoading, logout, getAccessTokenSilently } = useAuth0();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [earScore, setEarScore] = useState(0.35);
@@ -23,11 +25,17 @@ function DashboardPage() {
   const [headPose, setHeadPose] = useState("Stable");
   const [systemState, setSystemState] = useState("Awake");
   const [hazardState, setHazardState] = useState("Clear");
-  const [userName, setUserName] = useState("Anthony");
+  const [userName, setUserName] = useState("Driver");
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showDrowsinessAlert, setShowDrowsinessAlert] = useState(false);
   const [drowsinessAcknowledged, setDrowsinessAcknowledged] = useState(false);
   const navigate = Route.useNavigate();
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) {
+      navigate({ to: "/" });
+    }
+  }, [isAuthenticated, isLoading, navigate]);
 
   useEffect(() => {
     const storedName = localStorage.getItem("driverName");
@@ -37,9 +45,12 @@ function DashboardPage() {
   // --- REAL DATA POLLING ---
   useEffect(() => {
     const fetchStatus = async () => {
-      const username = localStorage.getItem("username") || "Anthony";
+      const username = localStorage.getItem("username") || "";
       try {
-        const resp = await fetch(`http://localhost:3001/status/${username}`);
+        const token = await getAccessTokenSilently();
+        const resp = await fetch(`http://localhost:3001/status/${username}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         const data = await resp.json();
         
         if (data.ear !== undefined) {
@@ -87,7 +98,9 @@ function DashboardPage() {
   };
 
   const handleLogout = () => {
-    navigate({ to: "/" });
+    localStorage.removeItem("driverName");
+    localStorage.removeItem("username");
+    logout({ logoutParams: { returnTo: window.location.origin } });
   };
 
   const getStatusColor = () => {

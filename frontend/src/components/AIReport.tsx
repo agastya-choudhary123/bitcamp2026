@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
 import { Sparkles, Loader2, ShieldCheck, AlertCircle } from 'lucide-react';
 
 interface AIReportProps {
@@ -6,16 +7,20 @@ interface AIReportProps {
 }
 
 const AIReport: React.FC<AIReportProps> = ({ sessionId }) => {
+  const { getAccessTokenSilently } = useAuth0();
   const [report, setReport] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const generateReport = async () => {
-    const username = localStorage.getItem("username") || "Anthony";
+    const username = localStorage.getItem("username") || "";
     setLoading(true);
     setError(null);
     try {
-      const resp = await fetch(`http://localhost:3001/report/${username}`);
+      const token = await getAccessTokenSilently();
+      const resp = await fetch(`http://localhost:3001/report/${username}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await resp.json();
       
       if (data.report) {
