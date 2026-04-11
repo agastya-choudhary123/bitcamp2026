@@ -127,12 +127,6 @@ function DashboardPage() {
             <div className="video-container aspect-video flex items-center justify-center">
               <video ref={videoRef} autoPlay playsInline className="video-feed" />
               {!isCameraActive && <p className="text-muted-foreground italic">Activating camera...</p>}
-              {earScore < 0.25 && (
-                <div className="absolute inset-x-0 top-0 p-4 bg-destructive/80 backdrop-blur-md flex items-center justify-center gap-3 animate-pulse">
-                  <AlertTriangle className="text-destructive-foreground" />
-                  <span className="text-destructive-foreground font-bold text-lg uppercase">Drowsiness Detected! Wake Up!</span>
-                </div>
-              )}
             </div>
           </div>
 
