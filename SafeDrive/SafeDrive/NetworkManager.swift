@@ -51,19 +51,36 @@ class NetworkManager {
         let driverName: String?
         let ear: Double?
         let perclos: Double?
-        let emergencyTriggered: Bool?
-        let internalMetrics: InternalMetrics?
-        
-        enum CodingKeys: String, CodingKey {
-            case driverName, ear, perclos, emergencyTriggered
-            case internalMetrics = "internal"
-        }
-        
-        struct InternalMetrics: Codable {
-            let drowsiness: DrowsinessMetrics?
-        }
-        struct DrowsinessMetrics: Codable {
-            let state: String?
+        let behaviorStates: [String]?
+        let behaviorSeverity: Int?
+        let metrics: RawMetrics?
+
+        struct RawMetrics: Codable {
+            let ear: Double?
+            let perclos: Double?
+            let closureDurationMs: Double?
+            let blinkRatePerMin: Double?
+            let avgBlinkDurationMs: Double?
+            let slowBlinkRate: Double?
+            let eyeRubCount: Double?
+            let asymmetryScore: Double?
+            let mar: Double?
+            let yawnCount: Double?
+            let headPitch: Double?
+            let headYaw: Double?
+            let headRoll: Double?
+            let headJerkVelocity: Double?
+            let nodFrequency: Double?
+            let headMovementEntropy: Double?
+            let microTremor: Double?
+            let gazeRatio: Double?
+            let gazeVertical: Double?
+            let gazeFixationDurationMs: Double?
+            let gazeDriftRepetition: Double?
+            let avgAttentionRecoveryMs: Double?
+            let browPosition: Double?
+            let progressiveFatigueRatio: Double?
+            let phoneDetectedDurationMs: Double?
         }
     }
     

@@ -1,101 +1,33 @@
 /**
- * Face structure metrics — derived from MediaPipe 468-point mesh.
- *
- * These metrics capture facial geometry that is relatively stable in normal
- * driving but deviates measurably under intoxication or medical distress.
+ * Face structure metrics — brow position, face area / lean.
+ * Note: facial asymmetry has been merged into eye_metrics.js → getPerEyeEAR().asymmetryScore
  */
 
-// ── Landmark index constants ──────────────────────────────────────────────────
-
-// Nose centerline reference points
-const NOSE_TIP   = 1;
-const NOSE_BRIDGE = 6;
-
-// Inner brow landmarks (for brow position / tension)
-const LEFT_INNER_BROW  = 107; // Left brow inner corner (near nose)
-const RIGHT_INNER_BROW = 336; // Right brow inner corner
-
-// Left face landmarks (mirrored set for symmetry)
-const LEFT_CHEEK_OUTER  = 234;
-const LEFT_EYE_CORNER   = 33;
-const LEFT_MOUTH_CORNER = 61;
-
-// Right face landmarks
-const RIGHT_CHEEK_OUTER  = 454;
-const RIGHT_EYE_CORNER   = 263;
-const RIGHT_MOUTH_CORNER = 291;
+const LEFT_INNER_BROW  = 107;
+const RIGHT_INNER_BROW = 336;
+const LEFT_EYE_CORNER  = 33;
+const RIGHT_EYE_CORNER = 263;
 
 /**
- * Computes facial symmetry score (0 = perfectly symmetric, higher = more asymmetric).
- *
- * Method: compare the distance from each left landmark to the nose centerline
- * vs the corresponding right landmark. Stroke / medical events cause pronounced
- * unilateral droop that produces high asymmetry.
- *
- * Returns a ratio in range [0, ~0.5] where >0.08 is clinically notable.
- */
-export function getFacialSymmetry(landmarks) {
-    if (!landmarks || landmarks.length < 470) return 0;
-
-    const nose = landmarks[NOSE_TIP];
-
-    // Measure horizontal distance (x-axis) from nose to each paired landmark
-    const pairs = [
-        [LEFT_CHEEK_OUTER, RIGHT_CHEEK_OUTER],
-        [LEFT_EYE_CORNER,  RIGHT_EYE_CORNER],
-        [LEFT_MOUTH_CORNER, RIGHT_MOUTH_CORNER]
-    ];
-
-    let totalAsymmetry = 0;
-    for (const [leftIdx, rightIdx] of pairs) {
-        const leftDist  = Math.abs(landmarks[leftIdx].x  - nose.x);
-        const rightDist = Math.abs(landmarks[rightIdx].x - nose.x);
-        const pairWidth = leftDist + rightDist;
-        if (pairWidth > 0) {
-            totalAsymmetry += Math.abs(leftDist - rightDist) / pairWidth;
-        }
-    }
-
-    return totalAsymmetry / pairs.length; // Normalized average asymmetry ratio
-}
-
-/**
- * Returns normalized brow position (0 = fully raised, 1 = fully drooped).
- *
- * Method: measure vertical distance from inner brow to eye corner as a
- * fraction of face height. Drooping inner brows = drowsiness or heavy eyelids.
+ * Brow droop score [0,1] — higher = more drooped.
+ * Normalized by face height. Used as a secondary drowsiness co-signal.
  */
 export function getBrowPosition(landmarks) {
-    if (!landmarks || landmarks.length < 470) return 0.5;
-
-    const leftBrow   = landmarks[LEFT_INNER_BROW];
-    const rightBrow  = landmarks[RIGHT_INNER_BROW];
-    const leftEye    = landmarks[LEFT_EYE_CORNER];
-    const rightEye   = landmarks[RIGHT_EYE_CORNER];
-
-    // Face height for normalization
-    const forehead = landmarks[10];
-    const chin     = landmarks[152];
-    const faceHeight = Math.abs(chin.y - forehead.y) || 1;
-
-    // Average vertical gap between brow and eye corner (normalized by face height)
-    const leftGap  = (leftEye.y  - leftBrow.y)  / faceHeight;
-    const rightGap = (rightEye.y - rightBrow.y)  / faceHeight;
-
-    // Higher value = brow closer to eye = more drooped
+    if (!landmarks || landmarks.length < 340) return 0.5;
+    const forehead  = landmarks[10];
+    const chin      = landmarks[152];
+    const faceH     = Math.abs(chin.y - forehead.y) || 1;
+    const leftGap   = (landmarks[LEFT_EYE_CORNER].y  - landmarks[LEFT_INNER_BROW].y)  / faceH;
+    const rightGap  = (landmarks[RIGHT_EYE_CORNER].y - landmarks[RIGHT_INNER_BROW].y) / faceH;
     return (leftGap + rightGap) / 2;
 }
 
 /**
- * Returns face area as a fraction of the total frame area.
- *
- * Method: rough bounding box from extreme landmarks. If this shrinks over time,
- * the driver is slumping away from the camera (medical / loss of consciousness).
+ * Face area fraction of the frame [0,1].
+ * Used to track slumping: if faceAreaRatio shrinks over time → driver moving away from camera.
  */
 export function getFaceAreaRatio(landmarks, videoElement) {
     if (!landmarks || landmarks.length === 0) return 0;
-    if (!videoElement || !videoElement.videoWidth) return 0;
-
     let minX = 1, maxX = 0, minY = 1, maxY = 0;
     for (const lm of landmarks) {
         if (lm.x < minX) minX = lm.x;
@@ -103,7 +35,18 @@ export function getFaceAreaRatio(landmarks, videoElement) {
         if (lm.y < minY) minY = lm.y;
         if (lm.y > maxY) maxY = lm.y;
     }
+    return (maxX - minX) * (maxY - minY);
+}
 
-    const faceArea = (maxX - minX) * (maxY - minY);
-    return faceArea; // Already normalized [0,1] since landmarks are in [0,1]
+/**
+ * Posture lean: horizontal offset of face centroid from frame center.
+ * Positive = leaning right, negative = leaning left.
+ * Value range roughly [-0.5, 0.5]; sustained |lean| > 0.15 = notable.
+ */
+export function getPostureLean(landmarks) {
+    if (!landmarks || landmarks.length === 0) return 0;
+    let sumX = 0;
+    for (const lm of landmarks) sumX += lm.x;
+    const centroidX = sumX / landmarks.length;
+    return centroidX - 0.5; // Positive = leaning right of frame center
 }

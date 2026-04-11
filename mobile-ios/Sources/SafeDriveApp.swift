@@ -10,6 +10,9 @@ struct SafeDriveApp: App {
             if isLoggedIn {
                 MainTabView()
                     .preferredColorScheme(.dark)
+                    .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("UserDidLogout"))) { _ in
+                        isLoggedIn = false
+                    }
             } else {
                 LoginView()
                     .preferredColorScheme(.dark)

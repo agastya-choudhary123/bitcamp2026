@@ -1,9 +1,9 @@
 const CLOSURE_THRESHOLD = 0.22;
 const YAWN_THRESHOLD    = 0.50;
-const PERCLOS_WINDOW_MS = 30000;  // 30 seconds
-const YAWN_WINDOW_MS    = 300000; // 5 minutes
-const NOD_WINDOW_MS     = 120000; // 2 minutes
-const ENTROPY_BINS      = 8;      // Histogram bins for head movement entropy
+const PERCLOS_WINDOW_MS = 30000;
+const YAWN_WINDOW_MS    = 300000;
+const NOD_WINDOW_MS     = 120000;
+const ENTROPY_BINS      = 8;
 
 export class TemporalSmoother {
     constructor() {
@@ -12,16 +12,19 @@ export class TemporalSmoother {
         this.currentClosureStart = null;
 
         // Blink tracking
-        this.blinkTimestamps    = []; // Timestamps of completed blinks
-        this.blinkDurations     = []; // Duration (ms) of each blink
-        this.blinkIntervals     = []; // Inter-blink intervals (ms)
-        this.lastBlinkTimestamp = null;
+        this.blinkTimestamps  = [];
+        this.blinkDurations   = [];
+        this.blinkIntervals   = [];
+        this.lastBlinkEnd     = null;
 
-        // Blink sync (per-eye closure timing)
-        this.leftClosureStart  = null;
-        this.rightClosureStart = null;
-        this.asyncBlinkCount   = 0;   // Counter of async blink events in last 60s
-        this.asyncBlinkTs      = [];  // Timestamps of async blinks
+        // Slow blink (deliberate fight-sleep pattern: closure > 200ms but < 1500ms)
+        this.slowBlinkCount    = 0;
+        this.slowBlinkTs       = [];
+
+        // Eye rub history (from getEyeRubSignal)
+        this.eyeRubSignalHistory = []; // rolling 30-sample buffer of rub confidence
+        this.eyeRubEventTs       = []; // timestamps of confirmed rub events (signal > 0.5 held 3+ frames)
+        this.eyeRubHeldFrames    = 0;
 
         // Progressive baseline
         this.awakeBaselineEAR    = null;
@@ -35,30 +38,37 @@ export class TemporalSmoother {
         this.lastPitchTime = null;
         this.headJerkVelocity = 0;
 
-        // Nod pattern
-        this.nodEvents = []; // Timestamps of nod peaks
+        // Nod events
+        this.nodEvents = [];
 
-        // Head movement entropy (histogram of deltas)
-        this.pitchDeltaHistory = []; // Last N pitch deltas for entropy
-        this.yawDeltaHistory   = []; // Last N yaw deltas for entropy
-        this.ENTROPY_WINDOW    = 60; // frames
+        // Attention recovery: after distraction/nod onset, when does pose return?
+        this.lastDistractionOnset   = null;
+        this.attentionRecoveryTimes = []; // array of recovery durations (ms)
 
-        // Micro-tremor (RMS jitter of landmarks)
-        this.landmarkJitterHistory = []; // Last 10 RMS values
+        // Head movement entropy
+        this.pitchDeltaHistory = [];
+        this.yawDeltaHistory   = [];
+        this.ENTROPY_WINDOW    = 60;
+
+        // Micro-tremor
+        this.landmarkJitterHistory = [];
         this.lastLandmarkSnapshot  = null;
 
         // Roll tracking
         this.currentRollDeviationStart = null;
 
-        // ── DISTRACTION / FACE MISSING ────────────────────────────────────
-        this.currentDistractionStart  = null;
-        this.currentFaceMissingStart  = null;
+        // ── DISTRACTION / FACE ────────────────────────────────────────────
+        this.currentDistractionStart = null;
+        this.currentFaceMissingStart = null;
 
         // ── GAZE ──────────────────────────────────────────────────────────
         this.currentGazeDeviationStart = null;
+        this.gazeHistory = [];
 
-        // Gaze variance (horizontal, rolling window)
-        this.gazeHistory = []; // Last 90 gaze samples (~3s at 30fps)
+        // Gaze drift repetition: track how often gaze deviates in same direction
+        this.gazeLeftEvents  = []; // timestamps of left-deviation events
+        this.gazeRightEvents = [];
+        this.gazeDownEvents  = [];
 
         // ── YAWN ──────────────────────────────────────────────────────────
         this.yawnTimestamps = [];
@@ -67,8 +77,9 @@ export class TemporalSmoother {
         // ── PHONE DETECTION ───────────────────────────────────────────────
         this.currentPhoneDetectedStart = null;
 
-        // ── FACE AREA ────────────────────────────────────────────────────
-        this.faceAreaHistory = []; // Last 60 area samples for trend detection
+        // ── FACE AREA / POSTURE ───────────────────────────────────────────
+        this.faceAreaHistory    = [];
+        this.postureLeanHistory = [];
     }
 
     // ─── EAR / PERCLOS ────────────────────────────────────────────────────────
@@ -76,26 +87,30 @@ export class TemporalSmoother {
     pushEAR(timestamp, ear) {
         const closed = ear < CLOSURE_THRESHOLD;
         this.history.push({ timestamp, ear, closed });
-
         const cutoff = timestamp - PERCLOS_WINDOW_MS;
-        while (this.history.length > 0 && this.history[0].timestamp < cutoff) {
-            this.history.shift();
-        }
+        while (this.history.length > 0 && this.history[0].timestamp < cutoff) this.history.shift();
 
         if (closed) {
             if (!this.currentClosureStart) this.currentClosureStart = timestamp;
         } else {
             if (this.currentClosureStart) {
                 const duration = timestamp - this.currentClosureStart;
-                if (duration < 800) {
+                if (duration >= 8 && duration < 1500) {
+                    // Track blink duration and intervals
                     this.blinkDurations.push(duration);
                     this.blinkTimestamps.push(timestamp);
-                    // Track inter-blink interval
-                    if (this.lastBlinkTimestamp !== null) {
-                        this.blinkIntervals.push(timestamp - this.lastBlinkTimestamp);
+                    if (this.lastBlinkEnd !== null) {
+                        this.blinkIntervals.push(timestamp - this.lastBlinkEnd);
                         if (this.blinkIntervals.length > 20) this.blinkIntervals.shift();
                     }
-                    this.lastBlinkTimestamp = timestamp;
+                    this.lastBlinkEnd = timestamp;
+
+                    // Slow blink detection: > 200ms closure, eyes were genuinely fighting closure
+                    if (duration > 200) {
+                        this.slowBlinkTs.push(timestamp);
+                        const slowCutoff = timestamp - 120000; // 2 min window
+                        while (this.slowBlinkTs.length > 0 && this.slowBlinkTs[0] < slowCutoff) this.slowBlinkTs.shift();
+                    }
                 }
                 this.currentClosureStart = null;
             }
@@ -120,34 +135,29 @@ export class TemporalSmoother {
     }
 
     /**
-     * Push per-eye EAR to detect asynchronous blinking.
-     * If one eye closes 80ms+ before the other, it's an async blink event.
+     * Eye rub detection: push per-frame rub signal from getEyeRubSignal().
+     * A "confirmed rub event" requires signal > 0.5 for at least 3 consecutive frames.
      */
-    pushPerEyeEAR(timestamp, leftEAR, rightEAR) {
-        const leftClosed  = leftEAR  < CLOSURE_THRESHOLD;
-        const rightClosed = rightEAR < CLOSURE_THRESHOLD;
-
-        if (leftClosed && !rightClosed) {
-            if (!this.leftClosureStart) this.leftClosureStart = timestamp;
-        } else if (rightClosed && !leftClosed) {
-            if (!this.rightClosureStart) this.rightClosureStart = timestamp;
-        } else {
-            // Check if we had a prolonged one-sided closure (>80ms = async event)
-            const leftOnlyDur  = this.leftClosureStart  ? (timestamp - this.leftClosureStart)  : 0;
-            const rightOnlyDur = this.rightClosureStart ? (timestamp - this.rightClosureStart) : 0;
-            if (leftOnlyDur > 80 || rightOnlyDur > 80) {
-                this.asyncBlinkCount++;
-                this.asyncBlinkTs.push(timestamp);
+    pushEyeRubSignal(timestamp, signal) {
+        if (signal > 0.5) {
+            this.eyeRubHeldFrames++;
+            if (this.eyeRubHeldFrames === 3) {
+                // Confirmed rub event
+                this.eyeRubEventTs.push(timestamp);
+                const cutoff = timestamp - 120000; // 2 min window
+                while (this.eyeRubEventTs.length > 0 && this.eyeRubEventTs[0] < cutoff) this.eyeRubEventTs.shift();
             }
-            this.leftClosureStart  = null;
-            this.rightClosureStart = null;
+        } else {
+            this.eyeRubHeldFrames = 0;
         }
+    }
 
-        // Clean async blink history (60s window)
-        const cutoff = timestamp - 60000;
-        while (this.asyncBlinkTs.length > 0 && this.asyncBlinkTs[0] < cutoff) {
-            this.asyncBlinkTs.shift();
-        }
+    getEyeRubCount() {
+        return this.eyeRubEventTs.length; // Confirmed rub events in last 2 min
+    }
+
+    getSlowBlinkRate() {
+        return this.slowBlinkTs.length; // Slow blinks in last 2 min
     }
 
     getPERCLOS() {
@@ -168,17 +178,11 @@ export class TemporalSmoother {
         return this.blinkDurations.reduce((a, b) => a + b, 0) / this.blinkDurations.length;
     }
 
-    /** Standard deviation of inter-blink intervals. High variance = intoxicated. */
     getBlinkIntervalVariance() {
         const n = this.blinkIntervals.length;
         if (n < 3) return 0;
         const mean = this.blinkIntervals.reduce((a, b) => a + b, 0) / n;
-        const variance = this.blinkIntervals.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / n;
-        return Math.sqrt(variance); // Return std dev in ms
-    }
-
-    getAsyncBlinkCount() {
-        return this.asyncBlinkTs.length; // Events in last 60s
+        return Math.sqrt(this.blinkIntervals.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / n);
     }
 
     getProgressiveFatigueRatio() {
@@ -190,23 +194,21 @@ export class TemporalSmoother {
     // ─── HEAD POSE ────────────────────────────────────────────────────────────
 
     pushHeadPose(timestamp, pitch, yaw, roll) {
-        // Head jerk velocity
+        // Jerk velocity
         if (this.lastPitch !== null && this.lastPitchTime !== null) {
             const dt = (timestamp - this.lastPitchTime) / 1000;
             if (dt > 0) {
-                const velocity = Math.abs(pitch - this.lastPitch) / dt;
-                this.headJerkVelocity = (this.headJerkVelocity * 0.7) + (velocity * 0.3);
+                const v = Math.abs(pitch - this.lastPitch) / dt;
+                this.headJerkVelocity = (this.headJerkVelocity * 0.7) + (v * 0.3);
             }
         }
 
-        // Nod events (pitch increasing = head drooping forward)
-        if (this.lastPitch !== null && (pitch - this.lastPitch) > 8) {
-            this.nodEvents.push(timestamp);
-        }
+        // Nod events
+        if (this.lastPitch !== null && (pitch - this.lastPitch) > 8) this.nodEvents.push(timestamp);
         const nodCutoff = timestamp - NOD_WINDOW_MS;
         while (this.nodEvents.length > 0 && this.nodEvents[0] < nodCutoff) this.nodEvents.shift();
 
-        // Head movement entropy (pitch + yaw deltas)
+        // Head movement entropy
         if (this.lastPitch !== null && this.lastYaw !== null) {
             this.pitchDeltaHistory.push(Math.abs(pitch - this.lastPitch));
             this.yawDeltaHistory.push(Math.abs(yaw   - this.lastYaw));
@@ -214,25 +216,31 @@ export class TemporalSmoother {
             if (this.yawDeltaHistory.length   > this.ENTROPY_WINDOW) this.yawDeltaHistory.shift();
         }
 
-        // Roll deviation tracking (sustained side-tilt = medical)
+        // Roll deviation
         const isRolled = roll !== null && Math.abs(roll) > 12;
-        if (isRolled) {
-            if (!this.currentRollDeviationStart) this.currentRollDeviationStart = timestamp;
-        } else {
-            this.currentRollDeviationStart = null;
-        }
+        if (isRolled) { if (!this.currentRollDeviationStart) this.currentRollDeviationStart = timestamp; }
+        else           { this.currentRollDeviationStart = null; }
 
-        // Distraction (yaw > 15 or pitch > 15)
+        // Distraction onset / attention recovery tracking
         const isDistracted = Math.abs(yaw) > 15 || Math.abs(pitch) > 15;
         if (isDistracted) {
-            if (!this.currentDistractionStart) this.currentDistractionStart = timestamp;
+            if (!this.currentDistractionStart) {
+                this.currentDistractionStart = timestamp;
+                this.lastDistractionOnset = timestamp;
+            }
         } else {
+            if (this.currentDistractionStart && this.lastDistractionOnset) {
+                // Driver has recovered — record recovery time
+                const recovery = timestamp - this.lastDistractionOnset;
+                if (recovery < 10000) { // Cap at 10s to avoid stale events
+                    this.attentionRecoveryTimes.push(recovery);
+                    if (this.attentionRecoveryTimes.length > 20) this.attentionRecoveryTimes.shift();
+                }
+            }
             this.currentDistractionStart = null;
         }
 
-        this.lastPitch     = pitch;
-        this.lastYaw       = yaw;
-        this.lastRoll      = roll;
+        this.lastPitch = pitch; this.lastYaw = yaw; this.lastRoll = roll;
         this.lastPitchTime = timestamp;
     }
 
@@ -240,87 +248,60 @@ export class TemporalSmoother {
         return this.currentDistractionStart ? (timestamp - this.currentDistractionStart) : 0;
     }
 
-    getNodFrequency() {
-        return this.nodEvents.length;
-    }
+    getNodFrequency() { return this.nodEvents.length; }
 
     getRollDeviationMs(timestamp) {
         return this.currentRollDeviationStart ? (timestamp - this.currentRollDeviationStart) : 0;
     }
 
-    /**
-     * Shannon entropy of head movement magnitude distribution.
-     * Low entropy = regular/rhythmic (drowsy nods).
-     * High entropy = chaotic/unpredictable (intoxicated).
-     * Returns value in [0, log2(ENTROPY_BINS)].
-     */
+    /** Average attention recovery time in ms. Lower = driver promptly self-corrects (distracted). Higher = slow (impaired). */
+    getAvgAttentionRecoveryMs() {
+        const n = this.attentionRecoveryTimes.length;
+        if (n === 0) return 0;
+        return this.attentionRecoveryTimes.reduce((a, b) => a + b, 0) / n;
+    }
+
     getHeadMovementEntropy() {
         const combined = [...this.pitchDeltaHistory, ...this.yawDeltaHistory];
         if (combined.length < 10) return 0;
-
         const maxVal = Math.max(...combined) || 1;
-        const binSize = maxVal / ENTROPY_BINS;
         const counts = new Array(ENTROPY_BINS).fill(0);
-
-        for (const v of combined) {
-            const bin = Math.min(Math.floor(v / binSize), ENTROPY_BINS - 1);
-            counts[bin]++;
-        }
-
+        for (const v of combined) counts[Math.min(Math.floor(v / (maxVal / ENTROPY_BINS)), ENTROPY_BINS - 1)]++;
         const total = combined.length;
         let entropy = 0;
-        for (const c of counts) {
-            if (c > 0) {
-                const p = c / total;
-                entropy -= p * Math.log2(p);
-            }
-        }
-        return entropy; // Max = log2(8) = 3.0
+        for (const c of counts) { if (c > 0) { const p = c / total; entropy -= p * Math.log2(p); } }
+        return entropy;
     }
 
     // ─── MICRO-TREMOR ─────────────────────────────────────────────────────────
 
-    /**
-     * Push a subset of key landmark positions to detect high-frequency jitter.
-     * Computes RMS displacement from last snapshot.
-     * Intoxication produces detectable tremor (>= 0.002 normalized units).
-     */
     pushLandmarkSnapshot(landmarks) {
         if (!landmarks || landmarks.length === 0) return;
-
-        // Use a stable set of key landmarks for tremor detection
-        const keyPoints = [1, 33, 263, 61, 291, 10, 152]; // Nose, eyes, mouth, face bounds
-        const snapshot = keyPoints.map(i => ({ x: landmarks[i].x, y: landmarks[i].y }));
-
+        const key = [1, 33, 263, 61, 291, 10, 152].map(i => ({ x: landmarks[i].x, y: landmarks[i].y }));
         if (this.lastLandmarkSnapshot) {
             let sumSq = 0;
-            for (let i = 0; i < snapshot.length; i++) {
-                const dx = snapshot[i].x - this.lastLandmarkSnapshot[i].x;
-                const dy = snapshot[i].y - this.lastLandmarkSnapshot[i].y;
+            for (let i = 0; i < key.length; i++) {
+                const dx = key[i].x - this.lastLandmarkSnapshot[i].x;
+                const dy = key[i].y - this.lastLandmarkSnapshot[i].y;
                 sumSq += dx * dx + dy * dy;
             }
-            const rms = Math.sqrt(sumSq / snapshot.length);
+            const rms = Math.sqrt(sumSq / key.length);
             this.landmarkJitterHistory.push(rms);
             if (this.landmarkJitterHistory.length > 10) this.landmarkJitterHistory.shift();
         }
-
-        this.lastLandmarkSnapshot = snapshot;
+        this.lastLandmarkSnapshot = key;
     }
 
-    /** Returns smoothed RMS jitter. Values >= 0.003 indicate notable tremor. */
     getMicroTremor() {
         if (this.landmarkJitterHistory.length === 0) return 0;
         return this.landmarkJitterHistory.reduce((a, b) => a + b, 0) / this.landmarkJitterHistory.length;
     }
 
-    // ─── FACE MISSING ─────────────────────────────────────────────────────────
+    // ─── FACE DETECTION ───────────────────────────────────────────────────────
 
     pushFaceDetected(timestamp, isDetected) {
-        if (!isDetected) {
-            if (!this.currentFaceMissingStart) this.currentFaceMissingStart = timestamp;
-        } else {
-            this.currentFaceMissingStart = null;
-        }
+        if (!isDetected) { if (!this.currentFaceMissingStart) this.currentFaceMissingStart = timestamp; }
+        else             { this.currentFaceMissingStart = null; }
     }
 
     getFaceMissingDurationMs(timestamp) {
@@ -329,15 +310,26 @@ export class TemporalSmoother {
 
     // ─── GAZE ─────────────────────────────────────────────────────────────────
 
-    pushGaze(timestamp, gazeRatio) {
+    pushGaze(timestamp, gazeRatio, gazeVertical) {
         this.gazeHistory.push(gazeRatio);
         if (this.gazeHistory.length > 90) this.gazeHistory.shift();
 
         const isDeviated = gazeRatio < 0.35 || gazeRatio > 0.65;
-        if (isDeviated) {
-            if (!this.currentGazeDeviationStart) this.currentGazeDeviationStart = timestamp;
-        } else {
-            this.currentGazeDeviationStart = null;
+        if (isDeviated) { if (!this.currentGazeDeviationStart) this.currentGazeDeviationStart = timestamp; }
+        else            { this.currentGazeDeviationStart = null; }
+
+        // Gaze drift repetition tracking (per direction)
+        const cutoff = timestamp - 60000;
+        if (gazeRatio < 0.35) {
+            this.gazeLeftEvents.push(timestamp);
+            while (this.gazeLeftEvents.length > 0 && this.gazeLeftEvents[0] < cutoff) this.gazeLeftEvents.shift();
+        } else if (gazeRatio > 0.65) {
+            this.gazeRightEvents.push(timestamp);
+            while (this.gazeRightEvents.length > 0 && this.gazeRightEvents[0] < cutoff) this.gazeRightEvents.shift();
+        }
+        if (gazeVertical !== undefined && gazeVertical > 0.70) {
+            this.gazeDownEvents.push(timestamp);
+            while (this.gazeDownEvents.length > 0 && this.gazeDownEvents[0] < cutoff) this.gazeDownEvents.shift();
         }
     }
 
@@ -345,12 +337,16 @@ export class TemporalSmoother {
         return this.currentGazeDeviationStart ? (timestamp - this.currentGazeDeviationStart) : 0;
     }
 
-    /** Variance of gaze ratio over last ~3s. High = erratic scanning (intoxicated). */
     getGazeVariance() {
         const n = this.gazeHistory.length;
         if (n < 5) return 0;
         const mean = this.gazeHistory.reduce((a, b) => a + b, 0) / n;
         return this.gazeHistory.reduce((s, v) => s + Math.pow(v - mean, 2), 0) / n;
+    }
+
+    /** Repetition score: max drift count in a single direction (higher = habitual distraction). */
+    getGazeDriftRepetition() {
+        return Math.max(this.gazeLeftEvents.length, this.gazeRightEvents.length, this.gazeDownEvents.length);
     }
 
     // ─── YAWN ─────────────────────────────────────────────────────────────────
@@ -361,50 +357,49 @@ export class TemporalSmoother {
                 this.isYawning = true;
                 this.yawnTimestamps.push(timestamp);
                 const cutoff = timestamp - YAWN_WINDOW_MS;
-                while (this.yawnTimestamps.length > 0 && this.yawnTimestamps[0] < cutoff) {
-                    this.yawnTimestamps.shift();
-                }
+                while (this.yawnTimestamps.length > 0 && this.yawnTimestamps[0] < cutoff) this.yawnTimestamps.shift();
             }
-        } else {
-            this.isYawning = false;
-        }
+        } else { this.isYawning = false; }
     }
 
-    getYawnCountPer5Min() {
-        return this.yawnTimestamps.length;
-    }
+    getYawnCountPer5Min() { return this.yawnTimestamps.length; }
 
     // ─── PHONE DETECTION ──────────────────────────────────────────────────────
 
     pushPhoneDetected(timestamp, isDetected) {
-        if (isDetected) {
-            if (!this.currentPhoneDetectedStart) this.currentPhoneDetectedStart = timestamp;
-        } else {
-            this.currentPhoneDetectedStart = null;
-        }
+        if (isDetected) { if (!this.currentPhoneDetectedStart) this.currentPhoneDetectedStart = timestamp; }
+        else            { this.currentPhoneDetectedStart = null; }
     }
 
     getPhoneDetectedDurationMs(timestamp) {
         return this.currentPhoneDetectedStart ? (timestamp - this.currentPhoneDetectedStart) : 0;
     }
 
-    // ─── FACE AREA TREND ──────────────────────────────────────────────────────
+    // ─── FACE AREA / POSTURE ──────────────────────────────────────────────────
 
     pushFaceArea(areaRatio) {
         this.faceAreaHistory.push(areaRatio);
         if (this.faceAreaHistory.length > 60) this.faceAreaHistory.shift();
     }
 
-    /**
-     * Returns the trend of face area over last ~2s (negative = shrinking = slumping).
-     * Threshold: < -0.005 per 30 frames indicates notable approach to unconsciousness.
-     */
     getFaceAreaTrend() {
         const n = this.faceAreaHistory.length;
         if (n < 10) return 0;
         const recent = this.faceAreaHistory.slice(-10).reduce((a, b) => a + b) / 10;
         const older  = this.faceAreaHistory.slice(0, 10).reduce((a, b) => a + b) / 10;
-        return recent - older; // Negative = face shrinking = driver pulling away from camera
+        return recent - older;
+    }
+
+    pushPostureLean(lean) {
+        this.postureLeanHistory.push(lean);
+        if (this.postureLeanHistory.length > 60) this.postureLeanHistory.shift();
+    }
+
+    /** Rolling average posture lean. Sustained non-zero = persistent side lean (medical). */
+    getAvgPostureLean() {
+        const n = this.postureLeanHistory.length;
+        if (n === 0) return 0;
+        return this.postureLeanHistory.reduce((a, b) => a + b, 0) / n;
     }
 }
 

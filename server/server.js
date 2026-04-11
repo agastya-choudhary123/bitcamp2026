@@ -215,16 +215,16 @@ app.post("/report/generate", requireAuth, async (req, res) => {
 })
 
 function checkEmergency(state) {
-    const behavior = state.behaviorState;
-    const crash    = state.external?.crash?.state;
-    const hazard   = state.external?.forwardHazard?.state;
+    const states = Array.isArray(state.behaviorStates) ? state.behaviorStates : [state.behaviorState || "alert"];
+    const crash   = state.external?.crash?.state;
+    const hazard  = state.external?.forwardHazard?.state;
 
-    if (crash    === "crash_detected")           return "CRASH DETECTED";
-    if (crash    === "crash_imminent")           return "CRASH IMMINENT";
-    if (behavior === "microsleep")               return "MICROSLEEP DETECTED";
-    if (behavior === "medical")                  return "MEDICAL EMERGENCY — CALL 911";
-    if (behavior === "intoxicated")              return "DRIVER POSSIBLY INTOXICATED";
-    if (hazard   === "immediate_forward_risk")   return "FORWARD COLLISION RISK";
+    if (crash === "crash_detected")                return "CRASH DETECTED";
+    if (crash === "crash_imminent")                return "CRASH IMMINENT";
+    if (states.includes("microsleep"))             return "MICROSLEEP DETECTED";
+    if (states.includes("medical"))                return "MEDICAL EMERGENCY — CALL 911";
+    if (states.includes("intoxicated"))            return "DRIVER POSSIBLY INTOXICATED";
+    if (hazard === "immediate_forward_risk")       return "FORWARD COLLISION RISK";
     return null;
 }
 

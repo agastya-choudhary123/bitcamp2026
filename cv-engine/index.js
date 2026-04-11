@@ -1,11 +1,11 @@
 import { startWebcam, startUploadedVideo } from './cv_module/capture.js';
 import { FaceLandmarkerManager } from './cv_module/mediapipe_vision.js';
 import { ExternalVisionManager, CrashDetector } from './cv_module/external_vision.js';
-import { getAverageEAR, getPerEyeEAR, getGazeDirection, getGazeVertical } from './cv_module/metrics/eye_metrics.js';
+import { getAverageEAR, getPerEyeEAR, getGazeDirection, getGazeVertical, getEyeRubSignal } from './cv_module/metrics/eye_metrics.js';
 import { getHeadPose } from './cv_module/metrics/head_metrics.js';
 import { calculateVisibilityMetrics } from './cv_module/metrics/environmental_metrics.js';
 import { getMouthAspectRatio } from './cv_module/metrics/mouth_metrics.js';
-import { getFacialSymmetry, getBrowPosition, getFaceAreaRatio } from './cv_module/metrics/face_structure_metrics.js';
+import { getBrowPosition, getFaceAreaRatio, getPostureLean } from './cv_module/metrics/face_structure_metrics.js';
 import { drowsinessSmoother } from './cv_module/state_engine/smoothing.js';
 import { classifyBehavior, behaviorSeverity } from './cv_module/state_engine/classifiers.js';
 import { CvState, updateSharedState } from './cv_module/shared_state.js';
@@ -251,126 +251,118 @@ function inferenceLoop() {
             const mar = getMouthAspectRatio(landmarks);
 
             // Per-eye EAR for asymmetry / sync detection (new Phase 2)
-            const perEye       = getPerEyeEAR(landmarks);
-            const gazeVertical = getGazeVertical(landmarks);
+            const eyeRubSignal   = getEyeRubSignal(landmarks);
+            const perEye          = getPerEyeEAR(landmarks);
+            const gazeVertical    = getGazeVertical(landmarks);
 
-            // Face structure metrics (new Phase 2)
-            const facialSymmetry = getFacialSymmetry(landmarks);
-            const browPosition   = getBrowPosition(landmarks);
-            const faceAreaRatio  = getFaceAreaRatio(landmarks, videoElement);
+            // Face structure
+            const browPosition  = getBrowPosition(landmarks);
+            const faceAreaRatio = getFaceAreaRatio(landmarks, videoElement);
+            const postureLean   = getPostureLean(landmarks);
 
             // --- STEP 5: TEMPORAL SMOOTHING ---
             drowsinessSmoother.pushEAR(nowInMs, ear);
-            drowsinessSmoother.pushPerEyeEAR(nowInMs, perEye.leftEAR, perEye.rightEAR);
+            drowsinessSmoother.pushEyeRubSignal(nowInMs, eyeRubSignal);
             drowsinessSmoother.pushHeadPose(nowInMs, pose.pitch, pose.yaw, pose.roll);
-            drowsinessSmoother.pushGaze(nowInMs, gazeRatio);
+            drowsinessSmoother.pushGaze(nowInMs, gazeRatio, gazeVertical);
             drowsinessSmoother.pushMAR(nowInMs, mar);
             drowsinessSmoother.pushLandmarkSnapshot(landmarks);
             drowsinessSmoother.pushFaceArea(faceAreaRatio);
+            drowsinessSmoother.pushPostureLean(postureLean);
 
-            const perclos                = drowsinessSmoother.getPERCLOS();
-            const closureDuration        = drowsinessSmoother.getEyeClosureDurationMs(nowInMs);
-            const distractionDuration    = drowsinessSmoother.getDistractionDurationMs(nowInMs);
-            const faceMissingDuration    = drowsinessSmoother.getFaceMissingDurationMs(nowInMs);
-            const blinkRate              = drowsinessSmoother.getBlinkRatePerMinute();
-            const avgBlinkDuration       = drowsinessSmoother.getAvgBlinkDurationMs();
-            const blinkIntervalVariance  = drowsinessSmoother.getBlinkIntervalVariance();
-            const asyncBlinkCount        = drowsinessSmoother.getAsyncBlinkCount();
-            const yawnCount              = drowsinessSmoother.getYawnCountPer5Min();
-            const nodFrequency           = drowsinessSmoother.getNodFrequency();
-            const gazeFixationDuration   = drowsinessSmoother.getGazeFixationDurationMs(nowInMs);
-            const gazeVariance           = drowsinessSmoother.getGazeVariance();
-            const progressiveRatio       = drowsinessSmoother.getProgressiveFatigueRatio();
-            const headJerkVelocity       = drowsinessSmoother.headJerkVelocity;
-            const headMovementEntropy    = drowsinessSmoother.getHeadMovementEntropy();
-            const microTremor            = drowsinessSmoother.getMicroTremor();
-            const rollDeviationMs        = drowsinessSmoother.getRollDeviationMs(nowInMs);
-            const phoneDetectedDuration  = drowsinessSmoother.getPhoneDetectedDurationMs(nowInMs);
-            const faceAreaTrend          = drowsinessSmoother.getFaceAreaTrend();
+            const perclos               = drowsinessSmoother.getPERCLOS();
+            const closureDuration       = drowsinessSmoother.getEyeClosureDurationMs(nowInMs);
+            const distractionDuration   = drowsinessSmoother.getDistractionDurationMs(nowInMs);
+            const faceMissingDuration   = drowsinessSmoother.getFaceMissingDurationMs(nowInMs);
+            const blinkRate             = drowsinessSmoother.getBlinkRatePerMinute();
+            const avgBlinkDuration      = drowsinessSmoother.getAvgBlinkDurationMs();
+            const blinkIntervalVariance = drowsinessSmoother.getBlinkIntervalVariance();
+            const slowBlinkRate         = drowsinessSmoother.getSlowBlinkRate();
+            const eyeRubCount           = drowsinessSmoother.getEyeRubCount();
+            const yawnCount             = drowsinessSmoother.getYawnCountPer5Min();
+            const nodFrequency          = drowsinessSmoother.getNodFrequency();
+            const gazeFixationDuration  = drowsinessSmoother.getGazeFixationDurationMs(nowInMs);
+            const gazeVariance          = drowsinessSmoother.getGazeVariance();
+            const gazeDriftRepetition   = drowsinessSmoother.getGazeDriftRepetition();
+            const progressiveRatio      = drowsinessSmoother.getProgressiveFatigueRatio();
+            const headJerkVelocity      = drowsinessSmoother.headJerkVelocity;
+            const headMovementEntropy   = drowsinessSmoother.getHeadMovementEntropy();
+            const microTremor           = drowsinessSmoother.getMicroTremor();
+            const rollDeviationMs       = drowsinessSmoother.getRollDeviationMs(nowInMs);
+            const phoneDetectedDuration = drowsinessSmoother.getPhoneDetectedDurationMs(nowInMs);
+            const faceAreaTrend         = drowsinessSmoother.getFaceAreaTrend();
+            const avgPostureLean        = drowsinessSmoother.getAvgPostureLean();
+            const avgAttentionRecovery  = drowsinessSmoother.getAvgAttentionRecoveryMs();
             
-            // --- STEP 7: UNIFIED BEHAVIORAL CLASSIFICATION ---
-            const behavior = classifyBehavior({
+            // --- STEP 7: MULTI-STATE BEHAVIORAL CLASSIFICATION ---
+            const behaviorStates = classifyBehavior({
                 perclos, closureDurationMs: closureDuration, progressiveRatio,
                 blinkRatePerMin: blinkRate, avgBlinkDurationMs: avgBlinkDuration,
-                yawnCount, earAsymmetry: perEye.asymmetry,
-                blinkIntervalVariance, asyncBlinkCount,
+                blinkIntervalVariance, slowBlinkRate, eyeRubCount,
+                yawnCount, asymmetryScore: perEye.asymmetryScore,
                 pitch: pose.pitch, yaw: pose.yaw, roll: pose.roll,
                 headJerkVelocity, nodFrequency,
                 distractionDurationMs: distractionDuration,
                 faceMissingDurationMs: faceMissingDuration,
                 rollDeviationMs, headMovementEntropy, microTremor,
                 gazeRatio, gazeFixationDurationMs: gazeFixationDuration,
-                gazeVertical, gazeVariance,
-                facialSymmetry, browPosition, faceAreaTrend,
+                gazeVertical, gazeVariance, gazeDriftRepetition,
+                avgAttentionRecoveryMs: avgAttentionRecovery,
+                browPosition, faceAreaTrend, avgPostureLean,
                 phoneDetectedDurationMs: phoneDetectedDuration,
                 mar
             });
-            const severity = behaviorSeverity(behavior);
+            const severity = behaviorSeverity(behaviorStates);
 
-            // Update the shared state
             updateSharedState({
                 metrics: {
                     ear, perclos, closureDurationMs: closureDuration,
                     leftEAR: perEye.leftEAR, rightEAR: perEye.rightEAR,
-                    earAsymmetry: perEye.asymmetry,
+                    asymmetryScore: perEye.asymmetryScore,
                     blinkRatePerMin: blinkRate, avgBlinkDurationMs: avgBlinkDuration,
-                    blinkIntervalVariance, asyncBlinkCount,
+                    blinkIntervalVariance, slowBlinkRate, eyeRubCount,
                     mar, yawnCount,
                     headPitch: pose.pitch, headYaw: pose.yaw, headRoll: pose.roll,
                     headJerkVelocity, nodFrequency,
                     headMovementEntropy, microTremor, rollDeviationMs,
                     gazeRatio, gazeVertical, gazeFixationDurationMs: gazeFixationDuration,
-                    gazeVariance,
-                    facialSymmetry, browPosition, faceAreaTrend,
+                    gazeVariance, gazeDriftRepetition,
+                    avgAttentionRecoveryMs: avgAttentionRecovery,
+                    browPosition, faceAreaTrend, avgPostureLean,
                     distractionDurationMs: distractionDuration,
                     faceMissingDurationMs: faceMissingDuration,
                     faceDetected: true,
                     phoneDetectedDurationMs: phoneDetectedDuration,
                     progressiveFatigueRatio: progressiveRatio
                 },
-                behaviorState: behavior,
+                behaviorStates,
                 behaviorSeverity: severity
             });
 
-            // --- UI Updates ---
-            liveEARDom.innerText = `EAR: ${ear.toFixed(3)} | L:${perEye.leftEAR?.toFixed(3)} R:${perEye.rightEAR?.toFixed(3)}`;
-            liveEARDom.style.color = (ear < 0.22) ? "red" : (perEye.asymmetry > 0.25) ? "orange" : "lightgreen";
-            
-            livePerclosDom.innerText = `PERCLOS: ${(perclos * 100).toFixed(1)}% | ASYM: ${perEye.asymmetry.toFixed(3)}`;
+            // --- UI ---
+            const stateLabel = behaviorStates.join(' + ').toUpperCase();
+            liveEARDom.innerText = `EAR: ${ear.toFixed(3)} | L:${perEye.leftEAR?.toFixed(3)} R:${perEye.rightEAR?.toFixed(3)} | ASYM: ${perEye.asymmetryScore?.toFixed(3)}`;
+            liveEARDom.style.color = (ear < 0.22) ? "red" : (perEye.asymmetryScore > 0.25) ? "orange" : "lightgreen";
+            livePerclosDom.innerText = `PERCLOS: ${(perclos*100).toFixed(1)}%`;
             livePerclosDom.style.color = (perclos > 0.15) ? "red" : (perclos > 0.10) ? "orange" : "lightgreen";
-            
-            liveBlinksDom.innerText = `BLINKS/MIN: ${blinkRate} | AVG: ${avgBlinkDuration.toFixed(0)}ms | JITTER: ${blinkIntervalVariance.toFixed(0)}ms | ASYNC: ${asyncBlinkCount}`;
+            liveBlinksDom.innerText = `BLINKS: ${blinkRate}/min | AVG: ${avgBlinkDuration.toFixed(0)}ms | SLOW: ${slowBlinkRate} | RUBS: ${eyeRubCount} | JITTER: ${blinkIntervalVariance.toFixed(0)}ms`;
             liveMARDom.innerText = `MAR: ${mar.toFixed(3)} | YAWNS/5min: ${yawnCount} | BROW: ${browPosition.toFixed(3)}`;
             liveMARDom.style.color = (yawnCount >= 2 || mar > 0.5) ? "orange" : "white";
-
-            // Unified state
-            liveStateDom.innerText = `[ ${behavior.toUpperCase()} ] (sev: ${severity})`;
+            liveStateDom.innerText = `[ ${stateLabel} ] (sev: ${severity})`;
             if (severity >= 4) liveStateDom.style.color = "red";
             else if (severity === 3) liveStateDom.style.color = "orange";
             else if (severity === 2) liveStateDom.style.color = "yellow";
             else liveStateDom.style.color = "lightgreen";
-
-            livePitchDom.innerText = `PITCH: ${pose.pitch.toFixed(1)} | ROLL: ${pose.roll?.toFixed(1) ?? '--'}`;
+            livePitchDom.innerText = `PITCH: ${pose.pitch.toFixed(1)} | ROLL: ${pose.roll?.toFixed(1) ?? '--'} | LEAN: ${(avgPostureLean*100).toFixed(1)}%`;
             livePitchDom.style.color = (pose.pitch > 15 || Math.abs(pose.roll ?? 0) > 12) ? "red" : "white";
-
-            liveYawDom.innerText = `YAW: ${pose.yaw.toFixed(1)} | ENTROPY: ${headMovementEntropy.toFixed(2)}`;
+            liveYawDom.innerText = `YAW: ${pose.yaw.toFixed(1)} | ENTROPY: ${headMovementEntropy.toFixed(2)} | RECOVERY: ${avgAttentionRecovery.toFixed(0)}ms`;
             liveYawDom.style.color = (Math.abs(pose.yaw) > 15 || headMovementEntropy > 2.0) ? "red" : "white";
-
-            liveGazeDom.innerText = `GAZE H: ${gazeRatio.toFixed(2)} V: ${gazeVertical.toFixed(2)} | FIX: ${(gazeFixationDuration/1000).toFixed(1)}s | VAR: ${gazeVariance.toFixed(4)}`;
-            liveGazeDom.style.color = (gazeFixationDuration > 2000 || gazeVariance > 0.015) ? "red" : "white";
-            
+            liveGazeDom.innerText = `GAZE H:${gazeRatio.toFixed(2)} V:${gazeVertical.toFixed(2)} | FIX:${(gazeFixationDuration/1000).toFixed(1)}s | DRIFT:${gazeDriftRepetition}`;
+            liveGazeDom.style.color = (gazeFixationDuration > 2000 || gazeDriftRepetition >= 5) ? "red" : "white";
             liveNodDom.innerText = `JERK: ${headJerkVelocity.toFixed(0)}°/s | NODS: ${nodFrequency} | TREMOR: ${(microTremor*1000).toFixed(2)}`;
             liveNodDom.style.color = (headJerkVelocity > 60 || microTremor > 0.003) ? "red" : "white";
-
-            if (liveDistractionStateDom) {
-                liveDistractionStateDom.innerText = `PHONE: ${(phoneDetectedDuration/1000).toFixed(1)}s | DISTRACT: ${(distractionDuration/1000).toFixed(1)}s | SYM: ${facialSymmetry.toFixed(3)}`;
-                liveDistractionStateDom.style.color = (phoneDetectedDuration > 2000 || facialSymmetry > 0.10) ? "red" : "white";
-            }
-
-            if (liveImpairmentStateDom) {
-                liveImpairmentStateDom.innerText = `PROG: ${progressiveRatio.toFixed(2)} | AREA-TREND: ${(faceAreaTrend*100).toFixed(2)}% | ROLL-DEV: ${(rollDeviationMs/1000).toFixed(1)}s`;
-                liveImpairmentStateDom.style.color = (progressiveRatio < 0.80 || faceAreaTrend < -0.01) ? "orange" : "white";
-            }
+            if (liveDistractionStateDom) liveDistractionStateDom.innerText = `PHONE: ${(phoneDetectedDuration/1000).toFixed(1)}s | DISTRACT: ${(distractionDuration/1000).toFixed(1)}s`;
+            if (liveImpairmentStateDom)  liveImpairmentStateDom.innerText  = `PROG: ${progressiveRatio.toFixed(2)} | AREA-TREND: ${(faceAreaTrend*100).toFixed(2)}% | ROLL-DEV: ${(rollDeviationMs/1000).toFixed(1)}s`;
 
             // Draw the graphical mesh (keep this for debugging)
             const drawingUtils = new DrawingUtils(canvasCtx);

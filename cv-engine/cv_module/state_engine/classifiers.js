@@ -1,112 +1,128 @@
 /**
- * UNIFIED BEHAVIORAL CLASSIFIER — Phase 2
+ * MULTI-STATE BEHAVIORAL CLASSIFIER — Phase 3
  *
- * Takes a full metrics bundle and emits one of 7 discrete behavioral states.
- * Evaluated in strict priority order (higher priority overrides lower).
+ * Returns an ARRAY of active behavioral states. A driver can be classified
+ * into multiple simultaneous states as long as they are not contradictory.
  *
- * States:
- *   "alert"       — Baseline safe. No action.
- *   "drowsy"      — Progressive eye closure / fatigue pattern. Warning + monitor.
- *   "microsleep"  — Active eye closure >3s or severe head drop. Immediate SOS.
- *   "phone_use"   — Phone visible in scene + gaze deviation. Alert + clip.
- *   "distracted"  — Sustained gaze/head diversion without phone. Alert.
- *   "intoxicated" — Erratic motion convergence (tremor + chaos + inconsistency).
- *   "medical"     — Unilateral/sustained unresponsiveness (stroke, cardiac, etc).
+ * Compatibility rules:
+ *   - "alert" is always solo (means everything else is absent)
+ *   - "microsleep" and "medical" are override states — they appear alone
+ *   - "intoxicated" can co-occur with "drowsy" (drunk AND sleepy)
+ *   - "drowsy" + "distracted" — valid (tired and looking away)
+ *   - "phone_use" + "drowsy" — valid (drowsy while on phone)
+ *   - "phone_use" + "distracted" — NOT combined (they are the same category of inattention, just cause-specific)
+ *   - "intoxicated" + "medical" — NOT valid (mutually exclusive)
+ *
+ * All 7 possible states:
+ *   "alert" | "drowsy" | "microsleep" | "phone_use" | "distracted" | "intoxicated" | "medical"
  */
-export function classifyBehavior({
-    // Eye
-    perclos, closureDurationMs, progressiveRatio,
-    blinkRatePerMin, avgBlinkDurationMs, yawnCount,
-    earAsymmetry, blinkIntervalVariance, asyncBlinkCount,
-    // Head / motion
-    pitch, yaw, roll,
-    headJerkVelocity, nodFrequency,
-    distractionDurationMs, faceMissingDurationMs,
-    rollDeviationMs, headMovementEntropy, microTremor,
-    // Gaze
-    gazeRatio, gazeFixationDurationMs, gazeVertical, gazeVariance,
-    // Face
-    facialSymmetry, browPosition, faceAreaTrend,
-    // External
-    phoneDetectedDurationMs,
-    // Mouth
-    mar
-}) {
+export function classifyBehavior(m) {
+    const {
+        perclos, closureDurationMs, progressiveRatio,
+        blinkRatePerMin, avgBlinkDurationMs, slowBlinkRate, eyeRubCount,
+        yawnCount, asymmetryScore,
+        blinkIntervalVariance,
+        pitch, yaw, roll,
+        headJerkVelocity, nodFrequency,
+        distractionDurationMs, faceMissingDurationMs,
+        rollDeviationMs, headMovementEntropy, microTremor,
+        gazeRatio, gazeFixationDurationMs, gazeVertical, gazeVariance,
+        gazeDriftRepetition, avgAttentionRecoveryMs,
+        browPosition, faceAreaTrend, avgPostureLean,
+        phoneDetectedDurationMs,
+        mar
+    } = m;
 
-    // ── MICROSLEEP (P1 — highest priority) ───────────────────────────────────
-    if (closureDurationMs > 3000) return "microsleep";
-    if (faceMissingDurationMs > 6000) return "microsleep";
-    // Head drops forward with eyes closed for 2s = microsleep without face data
-    if (closureDurationMs > 2000 && pitch > 25) return "microsleep";
+    // ── OVERRIDE STATES (appear alone) ───────────────────────────────────────
 
-    // ── MEDICAL EMERGENCY (P2) ────────────────────────────────────────────────
-    // Requires convergence of UNILATERAL or SUSTAINED unresponsiveness signals.
+    // MICROSLEEP — presence of active sustained closure
+    if (closureDurationMs > 3000) return ["microsleep"];
+    if (faceMissingDurationMs > 6000) return ["microsleep"];
+    if (closureDurationMs > 2000 && pitch > 25) return ["microsleep"];
+
+    // MEDICAL EMERGENCY — unilateral / sustained unresponsiveness
     {
-        let medScore = 0;
-        if (facialSymmetry > 0.10) medScore++;          // High facial asymmetry (stroke)
-        if (earAsymmetry   > 0.30 && perclos > 0.08) medScore++;  // One eye drooping
-        if (asyncBlinkCount > 4) medScore++;             // Blinks not synced
-        if (rollDeviationMs > 3000) medScore++;          // Head sustained side-tilt
-        if (faceAreaTrend < -0.01) medScore++;          // Face shrinking (slumping)
-        if (faceMissingDurationMs > 2000) medScore++;   // Intermittent face loss
-        if (browPosition > 0.15) medScore++;             // Pronounced brow droop
-
-        if (medScore >= 4) return "medical";
+        let s = 0;
+        if (asymmetryScore    > 0.28) s++;           // Strong facial asymmetry (stroke)
+        if (rollDeviationMs   > 3000) s++;           // Sustained head side-tilt
+        if (faceAreaTrend     < -0.01) s++;          // Slumping away from camera
+        if (faceMissingDurationMs > 2000) s++;       // Face intermittently gone
+        if (browPosition      > 0.15) s++;           // Pronounced brow droop
+        if (avgPostureLean !== undefined && Math.abs(avgPostureLean) > 0.18) s++;
+        if (s >= 3) return ["medical"];
     }
 
-    // ── INTOXICATED (P3) ──────────────────────────────────────────────────────
-    // Requires convergence of ERRATIC / INCONSISTENT motion signals.
-    // Key differentiator from medical: chaotic MOVEMENT, not stillness.
-    {
-        let intoxScore = 0;
-        if (headMovementEntropy > 2.0) intoxScore++;    // Chaotic unpredictable motion
-        if (microTremor > 0.003) intoxScore++;          // High-frequency hand/head tremor
-        if (blinkIntervalVariance > 400) intoxScore++;  // Erratic irregular blink timing
-        if (gazeVariance > 0.015) intoxScore++;         // Erratic scanning gaze
-        if (headJerkVelocity > 45 && perclos > 0.08) intoxScore++; // Jerky + eyes heavy
-        if (nodFrequency > 5) intoxScore++;             // Repetitive nodding
-        if (earAsymmetry > 0.15 && earAsymmetry < 0.30) intoxScore++; // Moderate asymmetry
-        if (progressiveRatio < 0.80) intoxScore++;     // EAR decaying over session
+    // ── PARALLEL STATES (can co-occur) ───────────────────────────────────────
+    const states = [];
 
-        if (intoxScore >= 4) return "intoxicated";
+    // INTOXICATED — requires erratic/chaotic convergence
+    {
+        let s = 0;
+        if (headMovementEntropy   > 2.0) s++;
+        if (microTremor           > 0.003) s++;
+        if (blinkIntervalVariance > 400) s++;
+        if (gazeVariance          > 0.015) s++;
+        if (headJerkVelocity > 45 && perclos > 0.08) s++;
+        if (nodFrequency          > 5) s++;
+        if (asymmetryScore > 0.12 && asymmetryScore < 0.28) s++;  // Moderate asymmetry
+        if (avgAttentionRecoveryMs > 3500 && avgAttentionRecoveryMs > 0) s++; // Slow self-correction
+        if (s >= 4) states.push("intoxicated");
     }
 
-    // ── PHONE USE (P4) ────────────────────────────────────────────────────────
-    if (phoneDetectedDurationMs > 2000 && gazeFixationDurationMs > 1000) return "phone_use";
-    if (phoneDetectedDurationMs > 2000 && gazeVertical > 0.70) return "phone_use"; // Gaze down + phone
-    if (phoneDetectedDurationMs > 4000) return "phone_use"; // Phone alone long enough
+    // DROWSY — eye-closure / fatigue convergence
+    {
+        let s = 0;
+        if (closureDurationMs  > 1500) s += 2;            // Weight heavier
+        if (perclos            > 0.15) s += 2;
+        if (perclos            > 0.10) s++;
+        if (yawnCount          >= 2)   s++;
+        if (slowBlinkRate      >= 2)   s++;                // Deliberate slow blinks = fighting sleep
+        if (eyeRubCount        >= 1)   s++;                // Rubbing eyes
+        if (avgBlinkDurationMs > 280 && blinkRatePerMin < 12) s++;
+        if (progressiveRatio   < 0.85) s++;
+        if (browPosition       > 0.12 && perclos > 0.08) s++;
+        if (s >= 3) states.push("drowsy");
+    }
 
-    // ── DROWSY (P5) ───────────────────────────────────────────────────────────
-    if (closureDurationMs > 1500) return "drowsy";
-    if (perclos > 0.15) return "drowsy";
-    if (perclos > 0.10 && yawnCount >= 2) return "drowsy";
-    if (avgBlinkDurationMs > 300 && blinkRatePerMin < 10 && perclos > 0.08) return "drowsy";
-    if (progressiveRatio < 0.82 && yawnCount >= 1) return "drowsy";
-    if (browPosition > 0.12 && perclos > 0.10) return "drowsy"; // Drooping brows + PERCLOS
+    // PHONE USE — phone detected with gaze co-signal
+    {
+        const phoneActive = phoneDetectedDurationMs > 2000;
+        const gazeDown    = gazeVertical > 0.70 && gazeFixationDurationMs > 1000;
+        if (phoneActive && gazeDown) states.push("phone_use");
+        else if (phoneDetectedDurationMs > 4000) states.push("phone_use");
+        else if (gazeDriftRepetition >= 5 && gazeVertical > 0.65) states.push("phone_use"); // Habitual downward drift even without phone
+    }
 
-    // ── DISTRACTED (P6) ───────────────────────────────────────────────────────
-    if (distractionDurationMs > 2000) return "distracted";
-    if (gazeFixationDurationMs > 2500) return "distracted";
-    if (headJerkVelocity > 70) return "distracted"; // Sudden violent snap
-    if (gazeVertical > 0.75 && gazeFixationDurationMs > 1500) return "distracted"; // Looking down
+    // DISTRACTED — head/gaze off-axis WITHOUT phone (mutually exclusive with phone_use)
+    if (!states.includes("phone_use")) {
+        let s = 0;
+        if (distractionDurationMs  > 2000) s++;
+        if (gazeFixationDurationMs > 2500) s++;
+        if (headJerkVelocity       > 70)   s++;
+        if (gazeDriftRepetition    >= 3)   s++;
+        if (avgAttentionRecoveryMs > 0 && avgAttentionRecoveryMs < 1500) s++; // Quick recovery = temporarily distracted
+        if (s >= 2) states.push("distracted");
+    }
 
-    // ── ALERT (default) ───────────────────────────────────────────────────────
-    return "alert";
+    // ALERT — default if nothing else triggered
+    if (states.length === 0) return ["alert"];
+
+    return states;
 }
 
 /**
- * Maps a behaviorState to an integer severity (0–5).
- * Used by the server's checkEmergency() and iOS badge coloring.
+ * Maximum severity across an array of states.
+ * Used for server-side emergency logic and iOS badge color.
  */
-export function behaviorSeverity(state) {
-    const map = {
-        microsleep:    5,
-        medical:       5,
-        intoxicated:   4,
-        drowsy:        3,
-        phone_use:     2,
-        distracted:    2,
-        alert:         0
+export function behaviorSeverity(states) {
+    const severityMap = {
+        microsleep:  5,
+        medical:     5,
+        intoxicated: 4,
+        drowsy:      3,
+        phone_use:   2,
+        distracted:  2,
+        alert:       0
     };
-    return map[state] ?? 0;
+    return Math.max(...states.map(s => severityMap[s] ?? 0));
 }
