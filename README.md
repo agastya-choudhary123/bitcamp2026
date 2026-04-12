@@ -1,95 +1,81 @@
-# Safeguard
+# 🛡️ Safeguard: Intelligent Driver Protection
 
-**Hybrid Intelligent Driver Safety System.** Safeguard monitors driver behavior in real-time using an edge-native hybrid architecture. It combines high-fidelity facial telemetry with dual-port camera awareness to detect drowsiness, intoxication, distraction, and medical emergencies — automatically engaging backend-driven emergency responses and video synchronization.
+**Safeguard** is an advanced, real-time driver safety system designed to prevent accidents before they happen. By combining high-fidelity Computer Vision (CV) with a hybrid edge architecture, Safeguard monitors behavioral patterns to detect drowsiness, distraction, and medical emergencies.
 
-Built at BitCamp 2026.
-
----
-
-## How It Works
-
-1. **Hybrid AI Engine**: The native iOS app embeds a high-performance JavaScript-based CV processor via `WKWebView`, utilizing **MediaPipe FaceLandmarker** (468 landmarks) to extract facial telemetry at ~15 FPS.
-2. **Temporal Stabilization**: Raw metrics are processed through a `TemporalSmoother` (for jitter reduction and feature extraction) and a `StateStabilizer` (for hysteresis-based classification).
-3. **Safety Thresholds**: To ensure ultra-high accuracy and minimize false alarms, critical states (Intoxicated, Medical) utilize:
-    - **15-second Neural Warm-up**: Extreme threshold suppression during early session tracking.
-    - **15-second Onset Delay**: Continuous detection required before a critical event escalation.
-4. **Dual-Camera Awareness**: Leverages `AVCaptureMultiCamSession` to provide a simultaneous feed of both the driver's face (facial monitoring) and the road ahead (situational awareness).
-5. **Event Synchronization**: Anomaly clips are automatically recorded and uploaded to the cloud, synchronized with real-time state telemetry sent to the Express backend.
+Built for the future of road safety at **BitCamp 2026**.
 
 ---
 
-## Features
+## 🚀 Key Features
 
-- **Adaptive Behavioral Monitoring** — EAR, PERCLOS, blink variance, head pose, and yawn detection (MAR) with multi-level severity scoring.
-- **Intoxication Detection** — Advanced inference based on landmark jitter (tremor), head movement entropy, and subtle facial asymmetry.
-- **Medical Emergency Detection** — Real-time monitoring for driver unresponsiveness (catatonia) and seizure-like high-frequency movement.
-- **Dual-Camera Dashboard** — Split-screen situational awareness with dedicated Road and Face monitors.
-- **Automated Video Clipping** — Intelligent triggers capture and upload 20-second video clips of safety anomalies for later review.
-- **Emergency Escalation** — Server-side integration with Gemini to generate and broadcast personalized SMS alerts with GPS links to emergency contacts.
-
----
-
-## Project Structure
-
-```bash
-bitcamp2026/
-├── Safeguard/      # Primary Native iOS App (Swift, SwiftUI, Hybrid AI)
-├── frontend/       # Web Dashboard (TanStack Start, React 19, Tailwind CSS 4)
-├── server/         # Distributed Backend (Node.js, Express, MongoDB, Gemini)
-├── mobile-expo/    # Cross-platform Mobile Client (React Native, Expo 52)
-└── cv-engine/      # Legacy/Reference CV Module (MediaPipe, TF.js)
-```
+- **👁️ Behavioral Intelligence** — Tracks eye closure (EAR/PERCLOS), blink variance, and continuous yawning to predict microsleep risks.
+- **📱 Distraction Monitoring** — Uses head-pose estimation and gaze tracking to detect phone usage and prolonged eyes-off-road events.
+- **🚑 Medical Emergency Trigger** — Automatically detects unresponsive states (catatonia) or sudden high-frequency movements (seizure-like telemetry).
+- **📹 Dual-Camera Awareness** — Simultaneously displays a front-facing Face Monitor and a rear-facing Road Monitor for total situational awareness.
+- **🚨 15-Second Safety Protocol** — A rigorous validation window that ensures emergency alerts are only triggered for genuine, sustained dangers.
+- **📲 Live SOS Integration** — Automatically broadcasts personalized SMS alerts with GPS coordinates to emergency contacts via Google Gemini AI.
 
 ---
 
-## Getting Started
+## 🛠️ How It Works
+
+Safeguard uses a **Hybrid Intelligent Architecture** to keep processing fast and reliable:
+
+### 1. The Edge AI Engine
+A high-performance JS-based vision engine is embedded directly into the native iOS app. It maps **468 facial landmarks** at 15 FPS. This "edge" processing means your data never leaves the device for basic monitoring.
+
+### 2. The 15-Second Safeguard Rule
+To prevent "false alarms," Safeguard follows a strict 15-second protocol:
+- **Neural Warm-up**: For the first 15 seconds of a session, the AI "learns" your baseline and uses ultra-strict filters.
+- **Sustained Detection**: Critical states (like Intoxication or Medical Emergency) must be detected continuously for 15 seconds before the system escalates to an emergency broadcast.
+
+### 3. Smart Evidence Clipping
+When a high-severity state is detected, Safeguard automatically records a **20-second video clip**. This clip is synced to the cloud and linked in the emergency SMS, giving first responders instant context on the situation.
+
+---
+
+## 📂 Project Structure
+
+- **`/Safeguard`**: The primary Native iOS app (Swift/SwiftUI).
+- **`/server`**: The distributed backend (Node.js, Express, MongoDB) that handles SOS alerts and video storage.
+- **`/frontend`**: A premium web dashboard for reviewing session replays and safety reports.
+- **`/mobile-expo`**: A cross-platform mobile client for managing emergency contacts.
+
+---
+
+## 🚥 Getting Started
 
 ### Prerequisites
+- **iOS Developers**: Xcode 15+ is required to build the native app.
+- **Backend Developers**: Node.js v18+, a MongoDB URI, and a Google Gemini API Key.
 
-- Xcode 15+ (for Safeguard native iOS)
-- Node.js v18+
-- MongoDB connection URI
-- Google Gemini API key
-- Cloudinary account
-
-### Installation
-
-1. Install root & server dependencies:
+### Fast Track
+1. **Back End**:
    ```bash
-   npm install
    cd server && npm install
+   npm run dev
    ```
-2. Open `Safeguard/Safeguard.xcodeproj` in Xcode to build the native iOS application.
-
-### Environment Variables
-
-Create a `.env` file in `server/`:
-
-```env
-MONGODB_URI=your_mongodb_connection_string
-GEMINI_API_KEY=your_gemini_api_key
-CLOUDINARY_CLOUD_NAME=your_cloud_name
-CLOUDINARY_UPLOAD_PRESET=your_upload_preset
-```
+2. **iOS App**:
+   - Open `Safeguard/Safeguard.xcodeproj` in Xcode.
+   - Run on an iPhone (physical device required for Multi-Cam features).
 
 ---
 
-## API Overview
+## 📝 API At A Glance
 
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/state` | Ingest real-time behavioral metrics & states |
-| `POST` | `/upload-video` | Upload anomaly clip (Base64) to Cloudinary |
-| `GET` | `/status/:username` | Retrieve latest driver safety telemetry |
-| `POST` | `/report/generate` | Trigger Gemini-powered safety analysis report |
-| `GET/POST` | `/emergency-contacts` | Manage SMS broadcast recipients |
+| Endpoint | Purpose |
+| :--- | :--- |
+| `POST /state` | Syncs real-time safety telemetry |
+| `POST /upload-video` | Stores anomaly clips for review |
+| `GET /status/:user` | Live feed for the web dashboard |
+| `POST /report/generate` | Creates an AI-powered safety summary |
 
 ---
 
-## Safety Protocol
+## 🔴 The Emergency Protocol
 
-When a critical state (`medical`, `intoxicated`, `microsleep`) is stabilized for the requisite **15 seconds**:
-1. Server identifies the driver and high-priority emergency contacts.
-2. Google Gemini generates a concise, context-aware alert (Name, Location, State).
-3. The alert is dispatched via the backend messaging pipeline.
-4. A synchronization event is logged, including a link to the corresponding video clip for immediate review by first responders or family.
+When Safeguard determines a **True Emergency** (15s threshold met):
+1. **Context Fetching**: The server pulls your specific emergency contact list.
+2. **AI Generation**: Google Gemini drafts a personalized SMS (e.g., *"Medical emergency detected for Agastya. Speed: 65mph. View Location: [Link]"*).
+3. **Broadcast**: The message is sent immediately to all contacts.
+4. **Link Sync**: A link to the incident video is provided for immediate review.
