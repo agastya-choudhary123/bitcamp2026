@@ -2,7 +2,7 @@ import SwiftUI
 import AVFoundation
 import Combine
 
-// MARK: - Monitor (Renamed contents but logic preserved)
+// MARK: - Monitor (Logic preserved for state transition only)
 
 class DrowsinessMonitor: ObservableObject {
     @Published var earScore: Double = 0.35
@@ -80,13 +80,16 @@ struct CameraPreview: UIViewRepresentable {
 // MARK: - Dashboard View
 
 struct DashboardView: View {
+    @AppStorage("isLoggedIn") private var isLoggedIn = false
+    @ObservedObject var backgroundProcessor: BackgroundCVProcessor
+    @StateObject var cameraManager = CameraManager()
     @StateObject var monitor = DrowsinessMonitor()
     @Environment(\.scenePhase) var scenePhase
 
     @State private var isDriving: Bool = false
     @State private var showProfileMenu: Bool = false
-    @State private var debugModeEnabled: Bool = false
-
+    @AppStorage("debugModeEnabled") private var debugModeEnabled: Bool = false
+    
     @AppStorage("activeUsername") private var activeUsername: String = ""
     @AppStorage("driverName")    private var driverName: String = ""
 
@@ -103,7 +106,7 @@ struct DashboardView: View {
                     .padding(.horizontal, 20)
                     .padding(.top, 12)
                     .padding(.bottom, 12)
-                    .background(Color.white) // Clean white header
+                    .background(Color.white)
                     .shadow(color: .black.opacity(0.03), radius: 5, y: 5)
 
                 if !isDriving {
@@ -113,7 +116,6 @@ struct DashboardView: View {
                 }
             }
 
-            // Profile dropdown overlay
             if showProfileMenu {
                 profileDropdown
                     .padding(.top, 64)
@@ -125,6 +127,12 @@ struct DashboardView: View {
                     .animation(.spring(response: 0.3, dampingFraction: 0.7), value: showProfileMenu)
                     .zIndex(10)
             }
+            
+            // Invisible AI Bridge
+            BackgroundBridgeView(webView: backgroundProcessor.webView)
+                .frame(width: 1, height: 1)
+                .opacity(0.01)
+                .allowsHitTesting(false)
         }
         .navigationBarHidden(true)
         .onChange(of: scenePhase) { _, newPhase in
@@ -133,10 +141,12 @@ struct DashboardView: View {
         .onTapGesture {
             if showProfileMenu { withAnimation { showProfileMenu = false } }
         }
+        .onAppear {
+            cameraManager.cvProcessor = backgroundProcessor
+        }
     }
 
     // MARK: - Top Bar
-
     var topBar: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 2) {
@@ -154,7 +164,6 @@ struct DashboardView: View {
             }
             Spacer()
 
-            // Profile circle
             Button(action: { withAnimation(.spring()) { showProfileMenu.toggle() } }) {
                 ZStack {
                     Circle()
@@ -172,7 +181,6 @@ struct DashboardView: View {
     }
 
     // MARK: - Profile Dropdown
-
     var profileDropdown: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 12) {
@@ -195,6 +203,7 @@ struct DashboardView: View {
             Toggle(isOn: $debugModeEnabled) {
                 Label("Telemetry Debug", systemImage: "chart.bar.xaxis")
                     .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.sdForeground)
             }
             .toggleStyle(SwitchToggleStyle(tint: .sdPrimary))
             .padding(16)
@@ -218,7 +227,6 @@ struct DashboardView: View {
     }
 
     // MARK: - Inactive Body
-
     var inactiveBody: some View {
         VStack {
             Spacer()
@@ -261,13 +269,11 @@ struct DashboardView: View {
     }
 
     // MARK: - Active Body
-
     var activeBody: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 20) {
                 cameraCard
                 behaviorCard
-                if debugModeEnabled { debugPanel }
                 stopButton
             }
             .padding(20)
@@ -275,31 +281,57 @@ struct DashboardView: View {
     }
 
     // MARK: - Camera Card
-
     var cameraCard: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Label("LIVE VISUALS", systemImage: "video.fill")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(monitor.isDataActive ? .sdPrimary : .sdRed)
-                Spacer()
-                if monitor.isDataActive {
-                    Circle().fill(Color.sdGreen).frame(width: 6, height: 6)
-                        .opacity(0.8)
+        VStack(spacing: 0) {
+            // TOP: ROAD
+            ZStack(alignment: .topLeading) {
+                CameraViewWrapper(previewLayer: cameraManager.backPreviewLayer)
+                    .frame(height: 220)
+                    .background(Color.black)
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("EXTERNAL: ROAD MONITOR", systemImage: "car.fill")
+                        .font(.system(size: 9, weight: .black))
+                        .padding(6)
+                        .background(Color.black.opacity(0.6))
+                        .foregroundColor(.white)
+                    
+                    if backgroundProcessor.hazardScore > 0 {
+                        Text("HAZARD DETECTED")
+                            .font(.system(size: 10, weight: .black))
+                            .padding(6)
+                            .background(Color.sdRed)
+                            .foregroundColor(.white)
+                    }
                 }
+                .padding(8)
             }
-            CameraPreview()
-                .frame(height: 200)
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+            
+            // BOTTOM: FACE
+            ZStack(alignment: .topLeading) {
+                CameraViewWrapper(previewLayer: cameraManager.frontPreviewLayer)
+                    .frame(height: 220)
+                    .background(Color.black)
+                
+                HStack(spacing: 8) {
+                    Circle()
+                        .fill(backgroundProcessor.isReady ? Color.sdGreen : Color.sdRed)
+                        .frame(width: 8, height: 8)
+                    
+                    Text(backgroundProcessor.isReady ? "LIVE AI VISION" : "INITIALIZING AI...")
+                }
+                .font(.system(size: 10, weight: .black))
+                .padding(8)
+                .background(backgroundProcessor.driverSeverity >= 3 ? Color.sdRed : Color.sdPrimary.opacity(0.9))
+                .foregroundColor(.white)
+                .padding(8)
+            }
         }
-        .padding(12)
-        .background(Color.white)
-        .cornerRadius(18)
-        .shadow(color: .black.opacity(0.04), radius: 8, y: 4)
+        .clipShape(RoundedRectangle(cornerRadius: 18))
+        .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
     }
 
     // MARK: - Behavior Card
-
     var behaviorCard: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -307,8 +339,8 @@ struct DashboardView: View {
                     .font(.system(size: 10, weight: .bold))
                     .foregroundColor(.sdMuted)
                 Spacer()
-                if monitor.behaviorSeverity > 0 {
-                    Text("SEVERITY \(monitor.behaviorSeverity)")
+                if backgroundProcessor.driverSeverity > 0 {
+                    Text("SEVERITY \(backgroundProcessor.driverSeverity)")
                         .font(.system(size: 10, weight: .black))
                         .foregroundColor(.white)
                         .padding(.horizontal, 8)
@@ -319,24 +351,9 @@ struct DashboardView: View {
             }
 
             FlowLayout(spacing: 8) {
-                ForEach(monitor.behaviorStates, id: \.self) { state in
+                ForEach(backgroundProcessor.driverStates, id: \.self) { state in
                     StateBadge(state: state)
                 }
-            }
-
-            // Minimalist Waveform
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("EYE ACTIVITY (EAR)")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.sdSubtle)
-                    Spacer()
-                    Text(String(format: "%.3f", monitor.earScore))
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundColor(.sdPrimary)
-                }
-                WaveformView(dataPoints: monitor.history)
-                    .frame(height: 60)
             }
         }
         .padding(16)
@@ -346,7 +363,7 @@ struct DashboardView: View {
     }
 
     var severityColor: Color {
-        switch monitor.behaviorSeverity {
+        switch backgroundProcessor.driverSeverity {
         case 5: return .sdRed
         case 4: return .sdOrange
         case 3: return .sdYellow
@@ -354,47 +371,6 @@ struct DashboardView: View {
         default: return .sdGreen
         }
     }
-
-    // MARK: - Debug Panel
-
-    var debugPanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Image(systemName: "terminal.fill").font(.caption).foregroundColor(.sdPrimary)
-                Text("RAW TELEMETRY")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.sdPrimary)
-            }
-            
-            VStack(spacing: 2) {
-                debugRow("EAR", val: monitor.lastMetrics?.ear, fmt: "%.3f", warn: 0.22, warnLow: true)
-                debugRow("PERCLOS", val: monitor.lastMetrics?.perclos, fmt: "%.1f%%", scale: 100, warn: 15)
-                debugRow("Blinks/min", val: monitor.lastMetrics?.blinkRatePerMin, fmt: "%.0f", warn: 8, warnLow: true)
-                debugRow("Slow Blinks", val: monitor.lastMetrics?.slowBlinkRate, fmt: "%.0f", warn: 2)
-                debugRow("Eye Rubs", val: monitor.lastMetrics?.eyeRubCount, fmt: "%.0f", warn: 1)
-                debugRow("Asymmetry", val: monitor.lastMetrics?.asymmetryScore, fmt: "%.3f", warn: 0.15)
-                debugRow("Head Jerk", val: monitor.lastMetrics?.headJerkVelocity, fmt: "%.0f°/s", warn: 60)
-                debugRow("Entropy", val: monitor.lastMetrics?.headMovementEntropy, fmt: "%.2f", warn: 2.0)
-                debugRow("Recovery", val: monitor.lastMetrics?.avgAttentionRecoveryMs, fmt: "%.0fms", warn: 3500)
-                debugRow("Lean Offset", val: monitor.lastMetrics?.browPosition, fmt: "%.3f", warn: 0.15) // Proxy for lean in this view
-            }
-        }
-        .padding(16)
-        .background(Color(white: 0.98))
-        .cornerRadius(18)
-        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.sdCardBorder, lineWidth: 1))
-    }
-
-    @ViewBuilder
-    func debugRow(_ label: String, val: Double?, fmt: String, scale: Double = 1, warn: Double? = nil, warnLow: Bool = false) -> some View {
-        if let v = val {
-            let display = v * scale
-            let isWarning = warnLow ? (display < (warn ?? 0)) : (display > (warn ?? 999))
-            DebugMetricRow(label: label, value: String(format: fmt, display), accent: isWarning ? .sdRed : .sdGreen)
-        }
-    }
-
-    // MARK: - Stop Button
 
     var stopButton: some View {
         Button(action: stopDrive) {
@@ -410,25 +386,28 @@ struct DashboardView: View {
     }
 
     // MARK: - Actions
-
     func startDrive() {
         isDriving = true
-        guard !activeUsername.isEmpty else { return }
-        monitor.startPolling(username: activeUsername)
+        cameraManager.checkPermissionsAndStart()
+        // Calibration happens silently in the background
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            backgroundProcessor.startCalibration()
+        }
     }
 
     func stopDrive() {
         isDriving = false
+        cameraManager.stopSession()
         monitor.stopPolling()
-        guard !activeUsername.isEmpty else { return }
-        let payload = ["driverName": activeUsername]
-        NetworkManager.shared.request(endpoint: "/report/generate", method: "POST", body: payload) { (_: Result<NetworkManager.ReportModel, Error>) in }
+        backgroundProcessor.resetMetrics()
     }
 
     func logout() {
         withAnimation { showProfileMenu = false }
         UserDefaults.standard.removeObject(forKey: "activeUsername")
         UserDefaults.standard.removeObject(forKey: "driverName")
+        NetworkManager.shared.accessToken = nil
+        isLoggedIn = false
         NotificationCenter.default.post(name: NSNotification.Name("UserDidLogout"), object: nil)
     }
 }

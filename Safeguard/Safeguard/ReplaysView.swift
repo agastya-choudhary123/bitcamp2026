@@ -2,17 +2,29 @@ import SwiftUI
 import AVKit
 
 struct ReplaysView: View {
-    @Environment(\.presentationMode) var presentationMode
     @AppStorage("activeUsername") private var activeUsername = ""
-    
     @State private var replays: [NetworkManager.ReplayModel] = []
     @State private var isLoading = false
     @State private var selectedVideoURL: URL? = nil
     @State private var isShowingPlayer = false
     
-    var sortedReplays: [NetworkManager.ReplayModel] {
-        replays.sorted {
+    // Date Filtering
+    @State private var startDate = Date().addingTimeInterval(-86400 * 7) // Last 7 days
+    @State private var endDate = Date()
+    @State private var showFilter = false
+    
+    var filteredReplays: [NetworkManager.ReplayModel] {
+        let sorted = replays.sorted {
             ($0.sessionEnd ?? $0.sessionStart ?? "") > ($1.sessionEnd ?? $1.sessionStart ?? "")
+        }
+        
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        
+        return sorted.filter { session in
+            guard let raw = session.sessionEnd ?? session.sessionStart,
+                  let date = isoFormatter.date(from: raw) else { return true }
+            return date >= startDate && date <= endDate
         }
     }
     
@@ -23,37 +35,49 @@ struct ReplaysView: View {
             VStack(alignment: .leading, spacing: 16) {
                 // Header
                 HStack {
-                    Button(action: { presentationMode.wrappedValue.dismiss() }) {
-                        Image(systemName: "chevron.left")
-                            .padding(12)
-                            .background(Color.sdCard)
-                            .clipShape(Circle())
-                    }
                     VStack(alignment: .leading) {
-                        Text("Incident Replays").font(.title2).bold()
+                        Text("Incident Replays").font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundColor(.sdForeground)
                         Text("CLOUD HOSTED SAFETY CLIPS").font(.caption2).kerning(1).foregroundColor(.sdMuted)
                     }
                     Spacer()
-                    Text("\(sortedReplays.count) clips").font(.caption).foregroundColor(.sdMuted)
+                    Button(action: { withAnimation { showFilter.toggle() } }) {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                            .font(.title3)
+                            .foregroundColor(showFilter ? .sdPrimary : .sdMuted)
+                    }
+                }
+                .padding(.horizontal)
+                
+                if showFilter {
+                    VStack(spacing: 12) {
+                        DatePicker("From", selection: $startDate, displayedComponents: .date)
+                        DatePicker("To", selection: $endDate, displayedComponents: .date)
+                    }
+                    .font(.subheadline)
+                    .padding()
+                    .background(Color.white)
+                    .cornerRadius(12)
+                    .shadow(color: .black.opacity(0.05), radius: 5)
+                    .padding(.horizontal)
                 }
                 
                 if isLoading {
                     Spacer()
-                    HStack { Spacer(); ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white)); Spacer() }
+                    HStack { Spacer(); ProgressView().tint(.sdPrimary); Spacer() }
                     Spacer()
-                } else if sortedReplays.isEmpty {
+                } else if filteredReplays.isEmpty {
                     Spacer()
                     VStack(spacing: 12) {
                         Image(systemName: "film.slash").font(.system(size: 40)).foregroundColor(.sdMuted)
-                        Text("No incident clips yet").foregroundColor(.sdMuted)
-                        Text("Clips are recorded automatically when an anomaly is detected.").font(.caption).foregroundColor(.sdMuted).multilineTextAlignment(.center)
+                        Text("No incident clips for this range").foregroundColor(.sdMuted)
                     }
                     .frame(maxWidth: .infinity)
                     Spacer()
                 } else {
                     ScrollView {
                         VStack(spacing: 14) {
-                            ForEach(sortedReplays) { session in
+                            ForEach(filteredReplays) { session in
                                 ReplayCard(session: session) {
                                     if let urlStr = session.videoUrl, let url = URL(string: urlStr) {
                                         selectedVideoURL = url
@@ -62,10 +86,11 @@ struct ReplaysView: View {
                                 }
                             }
                         }
+                        .padding(.horizontal)
                     }
                 }
             }
-            .padding()
+            .padding(.top, 20)
         }
         .navigationBarHidden(true)
         .onAppear(perform: loadReplays)

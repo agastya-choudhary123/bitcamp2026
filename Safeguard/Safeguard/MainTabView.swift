@@ -3,28 +3,24 @@ import SwiftUI
 struct MainTabView: View {
     @AppStorage("activeUsername") private var activeUsername: String = ""
     @AppStorage("driverName") private var driverNameKey: String = ""
+    @StateObject private var backgroundProcessor = BackgroundCVProcessor()
+    @AppStorage("debugModeEnabled") private var debugModeEnabled: Bool = false
 
     var body: some View {
         TabView {
-            DashboardView()
-                .tabItem {
-                    Label("Dashboard", systemImage: "shield.fill")
-                }
-
-            ReportsView()
-                .tabItem {
-                    Label("Analysis", systemImage: "chart.pie.fill")
-                }
+            DashboardView(backgroundProcessor: backgroundProcessor)
+                .tabItem { Label("Dashboard", systemImage: "shield.fill") }
 
             EmergencyContactsView()
-                .tabItem {
-                    Label("Circle", systemImage: "person.3.fill")
-                }
-            
-            GuideView()
-                .tabItem {
-                    Label("Help", systemImage: "questionmark.circle.fill")
-                }
+                .tabItem { Label("Contacts", systemImage: "person.2.fill") }
+
+            ReplaysView()
+                .tabItem { Label("Replays", systemImage: "film.fill") }
+
+            if debugModeEnabled {
+                DebugView(processor: backgroundProcessor)
+                    .tabItem { Label("Debug", systemImage: "terminal.fill") }
+            }
         }
         .accentColor(.sdPrimary) // Use Safeguard Blue for active tab
         // Use standard light tab appearance

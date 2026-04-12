@@ -13,6 +13,7 @@ struct EmergencyContactsView: View {
     @State private var contactRelationship = ""
     
     @State private var isLoading = false
+    @State private var isSaving = false
     @State private var showSuccess = false
     
     var body: some View {
@@ -20,23 +21,45 @@ struct EmergencyContactsView: View {
             Color.sdBackground.ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // Custom Header
+                // Header Area
                 HStack {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("SOS Circle")
+                        Text("Emergency Contacts")
                             .font(.system(size: 28, weight: .bold, design: .rounded))
                             .foregroundColor(.sdForeground)
                         
                         Text("Your Safeguard broadcast list.")
                             .font(.system(size: 13))
                             .foregroundColor(.sdMuted)
+                        
+                        if isSaving {
+                            HStack(spacing: 6) {
+                                ProgressView()
+                                    .scaleEffect(0.6)
+                                Text("Saving Changes...")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundColor(.sdPrimary)
+                            }
+                            .padding(.top, 4)
+                        } else if showSuccess {
+                            HStack(spacing: 6) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 10))
+                                Text("Saved to Profile")
+                                    .font(.system(size: 10, weight: .bold))
+                            }
+                            .foregroundColor(.sdGreen)
+                            .padding(.top, 4)
+                        }
                     }
                     Spacer()
                 }
                 .padding(.horizontal, 24)
                 .padding(.top, 20)
                 .padding(.bottom, 24)
+                .background(Color.sdBackground)
 
+                // Scrollable Content
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 24) {
                         // Add New Form
@@ -60,9 +83,10 @@ struct EmergencyContactsView: View {
                                     .foregroundColor(.white)
                                     .frame(maxWidth: .infinity)
                                     .padding(.vertical, 14)
-                                    .background(Color.sdPrimary)
+                                    .background(Color.sdPrimary.opacity(isSaving ? 0.6 : 1.0))
                                     .cornerRadius(10)
                             }
+                            .disabled(isSaving || contactName.isEmpty || contactPhone.isEmpty)
                             .padding(.top, 4)
                         }
                         .padding(20)
@@ -109,6 +133,7 @@ struct EmergencyContactsView: View {
                                                 .background(Color.sdRed.opacity(0.05))
                                                 .clipShape(Circle())
                                         }
+                                        .disabled(isSaving)
                                     }
                                     .padding(16)
                                     .background(Color.white)
@@ -119,32 +144,41 @@ struct EmergencyContactsView: View {
                         }
                     }
                     .padding(.horizontal, 24)
+                    .padding(.bottom, 20)
                 }
 
-                // Sync/Footer Section
-                VStack(spacing: 12) {
-                    Button(action: saveContactsToServer) {
+                // PINNED SAVE BUTTON (Always Visible Footer)
+                VStack(spacing: 0) {
+                    Divider()
+                        .background(Color.sdCardBorder)
+                    
+                    Button(action: {
+                        print("🚀 SAVE BUTTON CLICKED - Starting Sync...")
+                        saveContactsToServer()
+                    }) {
                         HStack {
-                            if isLoading {
-                                ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            if isSaving {
+                                ProgressView().tint(.white)
                             } else {
-                                Image(systemName: showSuccess ? "checkmark.circle.fill" : "icloud.and.arrow.up.fill")
-                                Text(showSuccess ? "Changes Saved" : "Sync All Contacts")
+                                Image(systemName: "cloud.fill")
+                                Text("Save Changes")
+                                    .font(.system(size: 16, weight: .bold))
                             }
                         }
-                        .font(.system(size: 15, weight: .bold))
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 16)
-                        .background(showSuccess ? Color.sdGreen : Color.sdPrimary)
-                        .cornerRadius(14)
-                        .shadow(color: (showSuccess ? Color.sdGreen : Color.sdPrimary).opacity(0.3), radius: 10, y: 5)
+                        .background(Color.sdPrimary)
+                        .cornerRadius(12)
+                        .shadow(color: Color.sdPrimary.opacity(0.3), radius: 10, y: 5)
+                        .contentShape(Rectangle())
                     }
-                    .disabled(isLoading)
+                    .disabled(isSaving)
+                    .padding(.horizontal, 24)
+                    .padding(.top, 16)
+                    .padding(.bottom, 34) // Safe area padding
+                    .background(Color.white)
                 }
-                .padding(24)
-                .background(Color.white)
-                .shadow(color: .black.opacity(0.05), radius: 10, y: -5)
             }
         }
         .onAppear(perform: loadContacts)
@@ -152,7 +186,7 @@ struct EmergencyContactsView: View {
     
     func addContactLocal() {
         guard !contactName.isEmpty && !contactPhone.isEmpty else { return }
-        let newContact = NetworkManager.ContactResponse(name: contactName, phone: contactPhone, relationship: contactRelationship)
+        let newContact = NetworkManager.ContactResponse(_id: nil, name: contactName, phone: contactPhone, relationship: contactRelationship)
         contacts.append(newContact)
         contactName = ""; contactPhone = ""; contactRelationship = ""
     }
@@ -163,26 +197,48 @@ struct EmergencyContactsView: View {
     
     func loadContacts() {
         guard !activeUsername.isEmpty else { return }
+        let encodedUsername = activeUsername.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? activeUsername
         isLoading = true
-        NetworkManager.shared.request(endpoint: "/user/\(activeUsername)/contact") { (result: Result<[NetworkManager.ContactResponse], Error>) in
+        NetworkManager.shared.request(endpoint: "/user/\(encodedUsername)/contact") { (result: Result<[NetworkManager.ContactResponse], Error>) in
             DispatchQueue.main.async {
                 isLoading = false
-                if case .success(let res) = result { contacts = res }
+                if case .success(let res) = result { 
+                    self.contacts = res 
+                    print("✅ Contacts Loaded: \(res.count)")
+                }
             }
         }
     }
     
     func saveContactsToServer() {
         guard !activeUsername.isEmpty else { return }
-        isLoading = true; showSuccess = false
-        let payload = contacts.map { ["name": $0.name ?? "", "phone": $0.phone ?? "", "relationship": $0.relationship ?? ""] }
-        NetworkManager.shared.request(endpoint: "/user/\(activeUsername)/contact", method: "POST", body: payload) { (result: Result<[NetworkManager.ContactResponse], Error>) in
+        let encodedUsername = activeUsername.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? activeUsername
+        isSaving = true; showSuccess = false
+        // Map to plain dictionary for server, excluding nil _id to avoid JSON serialization issues
+        let payload = ["emergencyContacts": contacts.map { contact -> [String: Any] in
+            var dict: [String: Any] = [
+                "name": contact.name ?? "",
+                "phone": contact.phone ?? "",
+                "relationship": contact.relationship ?? ""
+            ]
+            if let existingId = contact._id {
+                dict["_id"] = existingId
+            }
+            return dict
+        }]
+        
+        NetworkManager.shared.request(endpoint: "/user/\(encodedUsername)/contact", method: "POST", body: payload) { (result: Result<[NetworkManager.ContactResponse], Error>) in
             DispatchQueue.main.async {
-                isLoading = false
-                if case .success(let updated) = result { 
-                    contacts = updated
-                    showSuccess = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { showSuccess = false }
+                isSaving = false
+                switch result {
+                case .success(let updated):
+                    self.contacts = updated
+                    self.showSuccess = true
+                    print("✅ Server Sync Successful (Count: \(updated.count))")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { self.showSuccess = false }
+                case .failure(let err):
+                    print("❌ Server Sync Failed: \(err.localizedDescription)")
+                    self.loadContacts() // Rollback to server state
                 }
             }
         }

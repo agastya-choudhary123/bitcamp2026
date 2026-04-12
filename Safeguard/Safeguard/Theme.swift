@@ -8,8 +8,8 @@ extension Color {
     static let sdCard         = Color.white
     static let sdCardBorder   = Color(white: 0.0, opacity: 0.08)
     static let sdForeground   = Color(red: 0.05, green: 0.05, blue: 0.10)
-    static let sdMuted        = Color(red: 0.45, green: 0.47, blue: 0.52)
-    static let sdSubtle       = Color(red: 0.65, green: 0.67, blue: 0.72)
+    static let sdMuted        = Color(red: 0.35, green: 0.37, blue: 0.42) // Darkened for contrast
+    static let sdSubtle       = Color(red: 0.50, green: 0.52, blue: 0.57) // Darkened for contrast
 
     // Brand - Safeguard Vivid Blue
     static let sdPrimary      = Color(red: 0.00, green: 0.35, blue: 0.87) // Deep blue from screenshot

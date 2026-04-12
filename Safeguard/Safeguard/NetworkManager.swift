@@ -4,11 +4,14 @@ class NetworkManager {
     static let shared = NetworkManager()
 
     // Extracted from Macbook Ethernet/Wifi for iOS physical device connection!
-    let baseURL = "http://MacBook-Air-886.local:3001"
+    let baseURL = "http://172.23.26.41:3001"
 
-    /// Set this after Auth0 login; automatically attached to every request.
-    var accessToken: String?
-
+    /// Set this after Auth0 login; persists in UserDefaults for cross-session longevity.
+    var accessToken: String? {
+        get { UserDefaults.standard.string(forKey: "auth0_access_token") }
+        set { UserDefaults.standard.set(newValue, forKey: "auth0_access_token") }
+    }
+    
     private init() {}
     
     // MARK: - Models
@@ -25,10 +28,12 @@ class NetworkManager {
     }
     
     struct ContactResponse: Codable, Identifiable {
-        var id: String { name ?? UUID().uuidString }
+        let _id: String?
         var name: String?
         var phone: String?
         var relationship: String?
+        
+        var id: String { _id ?? name ?? UUID().uuidString }
     }
     
     struct ReportModel: Codable, Identifiable {
@@ -111,22 +116,37 @@ class NetworkManager {
                 return
             }
             
-            if let httpResponse = response as? HTTPURLResponse {
-                print("🌐 SERVER RESPONSE: \(httpResponse.statusCode)")
+            guard let httpResponse = response as? HTTPURLResponse else {
+                completion(.failure(NSError(domain: "NetworkManager", code: -3, userInfo: [NSLocalizedDescriptionKey: "Invalid response"])))
+                return
             }
             
+            print("🌐 SERVER RESPONSE: \(httpResponse.statusCode) [\(endpoint)]")
+            
             guard let data = data else {
-                print("⚠️ NO DATA RECEIVED FROM SERVER")
                 DispatchQueue.main.async { completion(.failure(NSError(domain: "NetworkManager", code: -2, userInfo: [NSLocalizedDescriptionKey: "No data"]))) }
+                return
+            }
+
+            // Handle non-2xx status codes
+            if !(200...299).contains(httpResponse.statusCode) {
+                let bodyString = String(data: data, encoding: .utf8) ?? "Unreadable body"
+                print("⚠️ SERVER ERROR BODY: \(bodyString)")
+                
+                let userInfo = [NSLocalizedDescriptionKey: "Server returned status \(httpResponse.statusCode)"]
+                DispatchQueue.main.async { completion(.failure(NSError(domain: "NetworkManager", code: httpResponse.statusCode, userInfo: userInfo))) }
                 return
             }
             
             do {
                 let decodedResponse = try JSONDecoder().decode(T.self, from: data)
-                print("✅ DECODE SUCCESS")
+                print("✅ DECODE SUCCESS [\(endpoint)]")
                 DispatchQueue.main.async { completion(.success(decodedResponse)) }
             } catch let decodeError {
                 print("❌ DECODE ERROR: \(decodeError)")
+                if let bodyString = String(data: data, encoding: .utf8) {
+                    print("📄 RAW BODY: \(bodyString)")
+                }
                 DispatchQueue.main.async { completion(.failure(decodeError)) }
             }
         }.resume()

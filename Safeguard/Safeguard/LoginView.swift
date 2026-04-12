@@ -126,6 +126,7 @@ struct LoginView: View {
         errorMessage = ""
 
         var webAuth = Auth0.webAuth()
+        
         if let hint = screenHint {
             webAuth = webAuth.parameters(["screen_hint": hint])
         }
@@ -138,11 +139,15 @@ struct LoginView: View {
                 isLoading = false
                 switch result {
                 case .success(let credentials):
-                    NetworkManager.shared.accessToken = credentials.accessToken
-                    let sub = credentials.idToken
-                    let name = extractName(from: credentials.idToken) ?? "Driver"
-                    activeUsername = extractSub(from: credentials.idToken) ?? sub
+                    NetworkManager.shared.accessToken = credentials.idToken // use idToken for backend JWT
+                    let idToken = credentials.idToken
+                    let name = extractName(from: idToken) ?? "Driver"
+                    let sub = extractSub(from: idToken) ?? "unknown_user"
+                    
+                    activeUsername = sub
                     driverName = name
+                    isLoggedIn = true // Set immediately after local success to ensure access
+                    
                     syncWithBackend(name: name)
                 case .failure(let error):
                     errorMessage = error.localizedDescription
@@ -171,25 +176,31 @@ struct LoginView: View {
 
     private func extractName(from idToken: String) -> String? {
         let parts = idToken.split(separator: ".")
-        guard parts.count == 3 else { return nil }
+        guard parts.count >= 2 else { return nil }
         var base64 = String(parts[1])
-        let remainder = base64.count % 4
-        if remainder != 0 { base64 += String(repeating: "=", count: 4 - remainder) }
+        base64 = base64.replacingOccurrences(of: "-", with: "+")
+        base64 = base64.replacingOccurrences(of: "_", with: "/")
+        while base64.count % 4 != 0 { base64 += "=" }
+        
         guard let data = Data(base64Encoded: base64),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return nil }
-        return json["name"] as? String ?? json["nickname"] as? String
+        
+        return json["name"] as? String ?? json["nickname"] as? String ?? json["email"] as? String
     }
 
     private func extractSub(from idToken: String) -> String? {
         let parts = idToken.split(separator: ".")
-        guard parts.count == 3 else { return nil }
+        guard parts.count >= 2 else { return nil }
         var base64 = String(parts[1])
-        let remainder = base64.count % 4
-        if remainder != 0 { base64 += String(repeating: "=", count: 4 - remainder) }
+        base64 = base64.replacingOccurrences(of: "-", with: "+")
+        base64 = base64.replacingOccurrences(of: "_", with: "/")
+        while base64.count % 4 != 0 { base64 += "=" }
+        
         guard let data = Data(base64Encoded: base64),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
         else { return nil }
+        
         return json["sub"] as? String
     }
 }

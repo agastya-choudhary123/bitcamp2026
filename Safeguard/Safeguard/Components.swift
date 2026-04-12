@@ -16,10 +16,10 @@ struct InputField: View {
             HStack {
                 if isSecure {
                     SecureField(placeholder, text: $text)
-                        .foregroundColor(.white)
+                        .foregroundColor(.sdForeground)
                 } else {
                     TextField(placeholder, text: $text)
-                        .foregroundColor(.white)
+                        .foregroundColor(.sdForeground)
                         .autocapitalization(.none)
                 }
             }
@@ -33,3 +33,5 @@ struct InputField: View {
         }
     }
 }
+
+

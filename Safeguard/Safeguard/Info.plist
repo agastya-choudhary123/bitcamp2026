@@ -16,9 +16,13 @@
 			<string>auth0</string>
 			<key>CFBundleURLSchemes</key>
 			<array>
-				<string>com.bitcamp2026.safeguard</string>
+				<string>com.bitcamp2026.safeguard-ai</string>
 			</array>
 		</dict>
 	</array>
+	<key>NSCameraUsageDescription</key>
+	<string>Safeguard requires camera access for real-time driver fatigue monitoring and road hazard detection.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Safeguard needs to connect to the local development server to sync your emergency contacts and driver telemetry.</string>
 </dict>
 </plist>

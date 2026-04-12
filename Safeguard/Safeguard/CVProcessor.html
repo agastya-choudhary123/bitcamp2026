@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { background: black; color: white; font-family: sans-serif; font-size: 10px; }
+        #debug { position: fixed; bottom: 0; left: 0; background: rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body>
+    <div id="debug">Initializing AI Intelligence...</div>
+    <img id="faceImg" style="display:none;" />
+
+    <script>
+        window.debug = (msg) => {
+            console.log(msg);
+            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.safeguardBridge) {
+                window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "log", message: msg });
+            }
+        };
+        window.debug("⚡ TELEMETRY ALIGNED & RESTORED");
+    </script>
+
+    <script type="module">
+        import { FaceLandmarker, FilesetResolver } from "safeguard-local://host/AI_Assets/vision_bundle.js";
+
+        /** 
+         * STABLE SINGLE-LAYER LEARNED WEIGHTS
+         * Restored to fix metrics data-type mismatches.
+         */
+        const LEARNED_WEIGHTS = {
+          "drowsy": {
+            "bias": -6.1581, "fEAR": 9.6598, "fPERCLOS": 3.8828, "fYawn": 12.0546, "fSlowBlink": 3.0883,
+            "fBlinkVar": -1.6944, "fYaw": -3.2762, "fPitch": -1.3497, "fRoll": -1.6664, "fEntropy": -1.7815,
+            "fTremor": -2.1436, "fJerk": -0.3422, "fClosureDur": -0.319, "fDistractDur": -1.5051,
+            "fPhoneDur": -1.904, "fMissingDur": -1.0176, "fAsymmetry": -1.3826, "fPosture": -1.5251, "isFacingForward": 0.2372
+          },
+          "intoxicated": {
+            "bias": -5.5324, "fEAR": -2.085, "fPERCLOS": -1.3478, "fYawn": -2.111, "fSlowBlink": -1.3132,
+            "fBlinkVar": 4.9861, "fYaw": -2.969, "fPitch": -1.2494, "fRoll": -1.4779, "fEntropy": 8.2881,
+            "fTremor": 5.9281, "fJerk": -0.6757, "fClosureDur": -0.4535, "fDistractDur": -1.392,
+            "fPhoneDur": -1.8566, "fMissingDur": -0.656, "fAsymmetry": -1.2211, "fPosture": -1.3448, "isFacingForward": -0.3412
+          },
+          "distracted": {
+            "bias": 0.0423, "fEAR": -1.2596, "fPERCLOS": -0.6061, "fYawn": -1.0127, "fSlowBlink": -0.572,
+            "fBlinkVar": -0.5724, "fYaw": 9.1005, "fPitch": -2.8163, "fRoll": -0.631, "fEntropy": -0.9128,
+            "fTremor": -0.742, "fDistractDur": 2.2121, "fPhoneDur": -5.0457, "fAsymmetry": -0.7288, "fPosture": -0.6631, "isFacingForward": -6.9679
+          },
+          "phone_use": {
+            "bias": -2.5737, "fEAR": -1.1371, "fPERCLOS": -0.813, "fYawn": -1.038, "fSlowBlink": -0.718,
+            "fBlinkVar": -0.6185, "fYaw": -5.273, "fPitch": 4.1752, "fRoll": -0.7799, "fEntropy": -0.777,
+            "fTremor": -0.5846, "fJerk": -0.3045, "fClosureDur": -0.2026, "fDistractDur": -1.7247,
+            "fPhoneDur": 7.7142, "fMissingDur": -0.3011, "fAsymmetry": -0.5194, "fPosture": -0.7717, "isFacingForward": -4.9106
+          },
+          "medical": {
+            "bias": -5.5509, "fEAR": -1.8239, "fPERCLOS": -1.3328, "fYawn": -1.9127, "fSlowBlink": -1.1331,
+            "fBlinkVar": -1.1554, "fYaw": -2.8525, "fPitch": -1.2187, "fRoll": 5.8492, "fEntropy": -1.2827,
+            "fTremor": -1.2013, "fJerk": -0.4793, "fClosureDur": -0.5947, "fDistractDur": -1.4266,
+            "fPhoneDur": -1.8334, "fMissingDur": -0.5297, "fAsymmetry": 4.8985, "fPosture": 5.7578, "isFacingForward": -0.797
+          }
+        };
+
+        const sigmoid = (z) => 1 / (1 + Math.exp(-z));
+
+        class StateStabilizer {
+            constructor() { this.timers = {}; this.activeStates = new Set(); this.criticalStates = ["intoxicated", "medical"]; }
+            process(timestamp, rawStates) {
+                const currentFrameSet = new Set(rawStates);
+                const results = new Set();
+                const relevantStates = new Set([...rawStates, ...this.activeStates]);
+                for (const state of relevantStates) {
+                    if (state === "alert") continue;
+                    const isCritical = this.criticalStates.includes(state);
+                    const isDetected = currentFrameSet.has(state);
+                    let ON_DELAY  = isCritical ? 3000 : 850;
+                    if (state === "intoxicated") ON_DELAY = 12500; // 12.5s of continuous impaired telemetry
+                    const OFF_DELAY = isCritical ? 4000 : 1500;
+                    if (!this.activeStates.has(state)) {
+                        if (isDetected) {
+                            if (!this.timers[state]) this.timers[state] = { onsetTs: timestamp, lastSeenTs: timestamp };
+                            else this.timers[state].lastSeenTs = timestamp;
+                            if (timestamp - this.timers[state].onsetTs >= ON_DELAY) this.activeStates.add(state);
+                        } else delete this.timers[state];
+                    } else {
+                        if (isDetected) this.timers[state].lastSeenTs = timestamp;
+                        else if (timestamp - this.timers[state].lastSeenTs >= OFF_DELAY) { this.activeStates.delete(state); delete this.timers[state]; }
+                    }
+                    if (this.activeStates.has(state)) results.add(state);
+                }
+                if (results.size === 0) return ["alert"];
+                const finalArr = Array.from(results);
+                return finalArr.length > 1 && finalArr.includes("alert") ? finalArr.filter(s => s !== "alert") : finalArr;
+            }
+        }
+
+        class TemporalSmoother {
+            constructor() {
+                this.history = []; this.blinkTimestamps = []; this.blinkDurations = []; this.slowBlinkTs = []; 
+                this.eyeRubEventTs = []; this.eyeRubHeldFrames = 0; this.nodEvents = []; this.yawnTimestamps = []; 
+                this.pitchDeltaHistory = []; this.yawDeltaHistory = []; this.landmarkJitterHistory = []; 
+                this.awakeBaselineEAR = 0.3; this.isCalibrating = false; this.lastPitch = 0; this.lastYaw = 0; 
+                this.lastRoll = 0; this.currentClosureStart = null; this.headJerkVelocity = 0;
+                this.stabilizer = new StateStabilizer(); this.lastPitchTime = null;
+                this.isYawning = false; this.lastLandmarkSnapshot = null;
+                this.lastFaceSeenTs = Date.now(); this.sessionStartTs = Date.now();
+                this.lastMovementTs = Date.now();
+            }
+
+            getFaceMissingDurationMs(now) { return now - this.lastFaceSeenTs; }
+
+            pushEAR(ts, ear) {
+                this.lastFaceSeenTs = ts;
+                const closed = ear < (this.awakeBaselineEAR * 0.72);
+                this.history.push({ ts, ear, closed });
+                if (closed) { if (!this.currentClosureStart) this.currentClosureStart = ts; }
+                else if (this.currentClosureStart) {
+                    const dur = ts - this.currentClosureStart;
+                    if (dur > 80 && dur < 1000) { 
+                        this.blinkTimestamps.push(ts); this.blinkDurations.push(dur);
+                        if (dur > 300) this.slowBlinkTs.push(ts);
+                    }
+                    this.currentClosureStart = null;
+                }
+                while(this.history.length > 0 && this.history[0].ts < ts - 60000) this.history.shift();
+            }
+
+            pushHeadPose(ts, pitch, yaw, roll) {
+                this.lastFaceSeenTs = ts;
+                if (this.lastPitchTime) {
+                    const dt = (ts - this.lastPitchTime) / 1000;
+                    if (dt > 0) {
+                        const v = Math.abs(pitch - this.lastPitch) / dt;
+                        this.headJerkVelocity = (this.headJerkVelocity * 0.7) + (v * 0.3);
+                        this.pitchDeltaHistory.push(Math.abs(pitch - this.lastPitch));
+                        this.yawDeltaHistory.push(Math.abs(yaw - this.lastYaw));
+                        if (this.pitchDeltaHistory.length > 30) this.pitchDeltaHistory.shift();
+                        if (this.yawDeltaHistory.length > 30) this.yawDeltaHistory.shift();
+                    }
+                }
+                this.lastPitch = pitch; this.lastYaw = yaw; this.lastRoll = roll; this.lastPitchTime = ts;
+            }
+
+            getHeadMovementEntropy() {
+                const combined = [...this.pitchDeltaHistory, ...this.yawDeltaHistory];
+                if (combined.length < 10) return 0;
+                const BINS = 8;
+                const maxVal = Math.max(...combined) || 1;
+                const counts = new Array(BINS).fill(0);
+                for (const v of combined) counts[Math.min(Math.floor(v / (maxVal / BINS)), BINS - 1)]++;
+                let entropy = 0;
+                for (const c of counts) { if (c > 0) { const p = c / combined.length; entropy -= p * Math.log2(p); } }
+                return entropy;
+            }
+
+            pushLandmarkSnapshot(lms) {
+                if (!lms || lms.length === 0) return;
+                this.lastFaceSeenTs = Date.now();
+                const key = [1, 33, 263, 61, 291, 10, 152].map(i => ({ x: lms[i].x, y: lms[i].y }));
+                if (this.lastLandmarkSnapshot) {
+                    let sumSq = 0;
+                    for (let i = 0; i < key.length; i++) {
+                        const dx = key[i].x - this.lastLandmarkSnapshot[i].x;
+                        const dy = key[i].y - this.lastLandmarkSnapshot[i].y;
+                        sumSq += dx * dx + dy * dy;
+                    }
+                    this.landmarkJitterHistory.push(Math.sqrt(sumSq / key.length));
+                    if (this.landmarkJitterHistory.length > 10) this.landmarkJitterHistory.shift();
+                }
+                this.lastLandmarkSnapshot = key;
+            }
+
+            pushEyeRubSignal(ts, signal) {
+                if (signal > 0.5) {
+                    this.eyeRubHeldFrames++;
+                    if (this.eyeRubHeldFrames === 3) this.eyeRubEventTs.push(ts);
+                } else this.eyeRubHeldFrames = 0;
+            }
+
+            pushMAR(ts, mar) {
+                if (mar > 0.50) {
+                    if (!this.isYawning) { this.isYawning = true; this.yawnTimestamps.push(ts); }
+                } else this.isYawning = false;
+            }
+
+            getFeatureVector(ts, m) {
+                const entropy = this.getHeadMovementEntropy();
+                return {
+                    fEAR: m.fEAR || 0.4, 
+                    fPERCLOS: m.fPERCLOS || 0, 
+                    fYawn: this.yawnTimestamps.length / 3,
+                    fSlowBlink: this.slowBlinkTs.length / 2, 
+                    fBlinkVar: 0, 
+                    fYaw: Math.abs(m.fYaw || 0) / 30,
+                    fPitch: Math.abs(m.fPitch || 0) / 30, 
+                    fRoll: Math.abs(m.fRoll || 0) / 20,
+                    fEntropy: entropy / 3.0, 
+                    fTremor: (this.landmarkJitterHistory.reduce((a,b)=>a+b,0)/10) / 0.005,
+                    fJerk: this.headJerkVelocity / 100, 
+                    fClosureDur: (this.currentClosureStart ? ts - this.currentClosureStart : 0) / 2500,
+                    fDistractDur: (Math.abs(m.fYaw) > 22 || Math.abs(m.fPitch) > 22 ? 1000 : 0) / 3000,
+                    fPhoneDur: 0,
+                    fMissingDur: this.getFaceMissingDurationMs(ts) / 3000, 
+                    fAsymmetry: m.fAsymmetry || 0, 
+                    fPosture: m.fPosture || 0, 
+                    isFacingForward: Math.abs(m.fYaw || 0) < 15 ? 1.0 : 0.0
+                };
+            }
+
+            purgeExpired(ts) {
+                const cut = ts - 60000;
+                while(this.blinkTimestamps.length > 0 && this.blinkTimestamps[0] < cut) { this.blinkTimestamps.shift(); this.blinkDurations.shift(); }
+                while(this.slowBlinkTs.length > 0 && this.slowBlinkTs[0] < ts - 300000) this.slowBlinkTs.shift();
+                while(this.eyeRubEventTs.length > 0 && this.eyeRubEventTs[0] < ts - 300000) this.eyeRubEventTs.shift();
+                while(this.yawnTimestamps.length > 0 && this.yawnTimestamps[0] < ts - 300000) this.yawnTimestamps.shift();
+            }
+
+            reset() {
+                this.history = []; this.blinkTimestamps = []; this.blinkDurations = []; this.slowBlinkTs = [];
+                this.eyeRubEventTs = []; this.eyeRubHeldFrames = 0; this.yawnTimestamps = [];
+                this.pitchDeltaHistory = []; this.yawDeltaHistory = []; this.landmarkJitterHistory = [];
+                this.lastPitch = 0; this.lastYaw = 0; this.lastRoll = 0; this.currentClosureStart = null;
+                this.headJerkVelocity = 0; this.stabilizer = new StateStabilizer(); this.lastPitchTime = null;
+                this.lastFaceSeenTs = Date.now(); this.sessionStartTs = Date.now();
+                this.lastMovementTs = Date.now();
+            }
+        }
+
+        const smoother = new TemporalSmoother();
+        let faceLandmarker;
+
+        async function initAI() {
+            try {
+                const filesetResolver = await FilesetResolver.forVisionTasks("safeguard-local://host/AI_Assets");
+                faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
+                    baseOptions: { modelAssetPath: "safeguard-local://host/AI_Assets/face_landmarker.task", delegate: "GPU" },
+                    runningMode: "IMAGE", numFaces: 1, outputFaceBlendshapes: true
+                });
+                window.isAIReady = true;
+                window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "ready" });
+                window.debug("🚀 STABLE ENGINE LOADED");
+            } catch (e) { window.debug("❌ ERROR: " + e.message); }
+        }
+
+        function pixelDistance(p1, p2, w, h) { return Math.sqrt(Math.pow((p1.x - p2.x)*w,2) + Math.pow((p1.y - p2.y)*h,2)); }
+
+        window.startCalibration = () => { smoother.awakeEARAccumulator = 0; smoother.awakeEARCounter = 0; smoother.isCalibrating = true; };
+        window.resetAI = () => { smoother.reset(); window.debug("🧹 AI ENGINE RESET"); };
+
+        window.processFrames = async (faceBase64, roadBase64) => {
+            if (!window.isAIReady || window.isProcessing) return;
+            window.isProcessing = true;
+            const now = Date.now();
+            try {
+                if (faceBase64 && faceLandmarker) {
+                    const img = document.getElementById('faceImg');
+                    const blob = await (await fetch("data:image/jpeg;base64," + faceBase64)).blob();
+                    const url = URL.createObjectURL(blob);
+                    img.src = url; await img.decode();
+                    const result = faceLandmarker.detect(img);
+                    URL.revokeObjectURL(url);
+
+                    if (result.faceLandmarks.length > 0) {
+                        const lms = result.faceLandmarks[0], w = img.naturalWidth, h = img.naturalHeight;
+                        const iris = lms[468], inner = lms[133], outer = lms[33], topE = lms[159], botE = lms[145];
+                        const dWidth = pixelDistance(inner, outer, w, h);
+                        const ear = pixelDistance(topE, botE, w, h) / dWidth;
+                        const gazeRatio = dWidth === 0 ? 0.5 : pixelDistance(iris, outer, w, h) / dWidth;
+                        const gazeVert = (iris.y - topE.y) / Math.abs(botE.y - topE.y);
+                        
+                        const fh = lms[10], ch = lms[152], lC = lms[234], rC = lms[454], lE = lms[33], rE = lms[263];
+                        const fW = pixelDistance(lC, rC, w, h), fH = pixelDistance(fh, ch, w, h), iE = pixelDistance(lE, rE, w, h);
+                        const pose = { pitch: (ch.z - fh.z)/(fH/h)*100, yaw: (lC.z-rC.z)/(fW/w)*100, roll: (rE.y-lE.y)*h/iE*100 };
+
+                        if (smoother.isCalibrating && !smoother.history.some(h=>h.closed)) {
+                            smoother.awakeEARAccumulator += ear; smoother.awakeEARCounter++;
+                            if (smoother.awakeEARCounter >= 100) { smoother.awakeBaselineEAR = smoother.awakeEARAccumulator / 100; smoother.isCalibrating = false; window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "calibration_finished" }); }
+                        }
+
+                        smoother.pushEAR(now, ear);
+                        smoother.pushHeadPose(now, pose.pitch, pose.yaw, pose.roll);
+                        smoother.pushLandmarkSnapshot(lms);
+                        
+                        const bL = result.faceBlendshapes?.[0]?.categories.find(c=>c.categoryName==='eyeBlinkLeft')?.score || 0;
+                        const bR = result.faceBlendshapes?.[0]?.categories.find(c=>c.categoryName==='eyeBlinkRight')?.score || 0;
+                        smoother.pushEyeRubSignal(now, (Math.min(bL,bR)>0.10 && Math.min(bL,bR)<0.24 && Math.max(bL,bR)>0.28) ? 1.0 : 0.0);
+                        smoother.pushMAR(now, Math.abs(lms[13].y - lms[14].y)*h / fH*10);
+
+                        const avgBlinkDur = smoother.blinkDurations.length > 0 ? (smoother.blinkDurations.reduce((a,b)=>a+b,0) / smoother.blinkDurations.length) : 0;
+                        const metrics = { 
+                            fEAR: ear, fPERCLOS: smoother.history.filter(h=>h.closed).length/(smoother.history.length||1), 
+                            fPitch: pose.pitch, fYaw: pose.yaw, fRoll: pose.roll, 
+                            fEntropy: smoother.getHeadMovementEntropy(), eyeRubs: smoother.eyeRubEventTs.length,
+                            gazeRatio: gazeRatio, gazeVertical: gazeVert, fSlowBlinks: smoother.slowBlinkTs.length,
+                            fYawn: smoother.yawnTimestamps.length, fBlinkRate: smoother.blinkTimestamps.length,
+                            fBlinkDur: avgBlinkDur, microTremor: (smoother.landmarkJitterHistory.reduce((a,b)=>a+b,0)/10),
+                            fFatigueRatio: (ear / (smoother.awakeBaselineEAR || 0.3)), fPosture: (lC.x+rC.x)/2 - 0.5,
+                            fAsymmetry: Math.abs(lC.z - rC.z)
+                        };
+                        
+                        const fv = smoother.getFeatureVector(now, metrics);
+                        
+                        // --- STABLE SINGLE-LAYER INFERENCE ---
+                        const rawStates = [];
+                        if ((fv.fClosureDur || 0) * 2500 > 2500) rawStates.push("microsleep");
+                        
+                        for (const [state, weights] of Object.entries(LEARNED_WEIGHTS)) {
+                            if (state === "alert" || state === "medical") continue;
+                            let z = weights.bias;
+                            for (const [feat, w] of Object.entries(weights)) {
+                                if (feat !== "bias") z += w * (fv[feat] || 0);
+                            }
+                            
+                            let threshold = 0.5;
+                            if (state === "intoxicated") {
+                                threshold = 0.96; // Ultra-strict general threshold
+                                // Neural Warm-up: extreme suppression during early session
+                                if (now - smoother.sessionStartTs < 15000) threshold = 0.995;
+                            }
+
+                            if (sigmoid(z) > threshold) rawStates.push(state);
+                        }
+
+                        // --- HEURISTIC OVERRIDES (MEDICAL EMERGENCY) ---
+                        const avgJitter = (smoother.landmarkJitterHistory.reduce((a,b)=>a+b,0)/10);
+                        if (smoother.headJerkVelocity > 0.2 || avgJitter > 0.0001) {
+                            smoother.lastMovementTs = now; // Any movement resets the catatonic timer
+                        }
+
+                        const states = smoother.stabilizer.process(now, rawStates);
+                        const sevMap = { microsleep: 5, medical: 5, intoxicated: 4, drowsy: 3, phone_use: 2, distracted: 2, alert: 0 };
+                        window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "ai_update", metrics: metrics, states: states, severity: Math.max(...states.map(s => sevMap[s] ?? 0)) });
+                        smoother.purgeExpired(now);
+                    }
+                    img.src = ""; 
+                }
+
+                // --- GLOBAL STILLNESS CHECK (MEDICAL) ---
+                const staticDur = now - smoother.lastMovementTs;
+                if (staticDur > 15000) {
+                    window.webkit.messageHandlers.safeguardBridge.postMessage({ 
+                        type: "ai_update", 
+                        metrics: { status: "CATATONIC" }, 
+                        states: ["medical"], 
+                        severity: 5 
+                    });
+                }
+
+                window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "frame_processed" });
+            } catch (e) { 
+                window.debug("⚠️ AI Error: " + e.message); 
+                window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "frame_processed" }); 
+            } finally { window.isProcessing = false; }
+        };
+        initAI();
+    </script>
+</body>
+</html>

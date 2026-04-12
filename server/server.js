@@ -18,7 +18,9 @@ const requireAuth = authDomain
         }
         return auth({
             audience: authClientId,
-            issuerBaseURL: `https://${authDomain}/`,
+            issuer: `https://${authDomain}/`,
+            jwksUri: `https://${authDomain}/.well-known/jwks.json`,
+            tokenSigningAlg: 'RS256'
         })(req, res, next);
     }
     : (req, res, next) => {
@@ -50,6 +52,16 @@ if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
 app.use(cors())
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ limit: '50mb', extended: true }))
+
+// Logging AFTER body parsing
+app.use((req, res, next) => {
+    console.log(`🌐 [${new Date().toISOString()}] ${req.method} ${req.url}`)
+    if (req.body && Object.keys(req.body).length > 0) {
+        console.log("📦 Body:", JSON.stringify(req.body, null, 2).substring(0, 500))
+    }
+    next()
+})
+
 app.use(express.static('../cv-engine'))
 
 mongoose.connect(process.env.MONGODB_URI)
@@ -488,6 +500,6 @@ app.get("/test-call", async (req, res) => {
     }
 })
 
-app.listen(3001, () => {
-    console.log("Backend running on port 3001")
+app.listen(3001, "0.0.0.0", () => {
+    console.log("Backend running on all interfaces (0.0.0.0) at port 3001")
 })
