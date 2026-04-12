@@ -21,7 +21,7 @@
     </script>
 
     <script type="module">
-        import { FaceLandmarker, ObjectDetector, FilesetResolver } from "safeguard-local://host/AI_Assets/vision_bundle.js";
+        import { FaceLandmarker, FilesetResolver } from "safeguard-local://host/AI_Assets/vision_bundle.js";
 
         /** 
          * STABLE SINGLE-LAYER LEARNED WEIGHTS
@@ -225,10 +225,6 @@
 
         const smoother = new TemporalSmoother();
         let faceLandmarker;
-        let objectDetector;
-
-        // Object categories that indicate road hazards
-        const HAZARD_LABELS = new Set(["car","truck","bus","motorcycle","bicycle","person","train","boat","vehicle"]);
 
         async function initAI() {
             try {
@@ -237,54 +233,10 @@
                     baseOptions: { modelAssetPath: "safeguard-local://host/AI_Assets/face_landmarker.task", delegate: "GPU" },
                     runningMode: "IMAGE", numFaces: 1, outputFaceBlendshapes: true
                 });
-                objectDetector = await ObjectDetector.createFromOptions(filesetResolver, {
-                    baseOptions: { modelAssetPath: "safeguard-local://host/AI_Assets/efficientdet_lite0.tflite", delegate: "GPU" },
-                    runningMode: "IMAGE", scoreThreshold: 0.35, maxResults: 6
-                });
                 window.isAIReady = true;
                 window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "ready" });
                 window.debug("🚀 STABLE ENGINE LOADED");
             } catch (e) { window.debug("❌ ERROR: " + e.message); }
-        }
-
-        // Analyze road frame for close collision hazards using ObjectDetector CV.
-        // Returns hazard score 0-100. Score >= 60 triggers the alarm.
-        async function detectCollisionHazard(base64) {
-            if (!objectDetector) return 0;
-            try {
-                const img = new Image();
-                const blob = await (await fetch("data:image/jpeg;base64," + base64)).blob();
-                const url = URL.createObjectURL(blob);
-                await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
-                URL.revokeObjectURL(url);
-
-                const result = objectDetector.detect(img);
-                const W = img.naturalWidth, H = img.naturalHeight;
-                let maxScore = 0;
-
-                for (const det of (result.detections || [])) {
-                    const cat = det.categories?.[0];
-                    if (!cat || cat.score < 0.35) continue;
-                    const label = cat.categoryName?.toLowerCase() ?? "";
-                    if (!HAZARD_LABELS.has(label)) continue;
-
-                    const bb = det.boundingBox;
-                    // Fraction of frame the bounding box occupies
-                    const areaFrac = (bb.width * bb.height) / (W * H);
-                    // Only care about objects centered in the lane (middle 50% of width)
-                    const cx = (bb.originX + bb.width / 2) / W;
-                    if (cx < 0.25 || cx > 0.75) continue;
-
-                    // areaFrac 0.25 = fills 25% of frame = dangerously close → score 100
-                    const proximity = Math.min(100, Math.round((areaFrac / 0.25) * 100));
-                    maxScore = Math.max(maxScore, proximity);
-                }
-
-                img.src = "";
-                return maxScore;
-            } catch (e) {
-                return 0;
-            }
         }
 
         function pixelDistance(p1, p2, w, h) { return Math.sqrt(Math.pow((p1.x - p2.x)*w,2) + Math.pow((p1.y - p2.y)*h,2)); }
@@ -391,16 +343,10 @@
                     });
                 }
 
-                // --- ROAD COLLISION DETECTION ---
-                if (roadBase64) {
-                    const hazard = await detectCollisionHazard(roadBase64);
-                    window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "hazard_score", score: hazard });
-                }
-
                 window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "frame_processed" });
-            } catch (e) {
-                window.debug("⚠️ AI Error: " + e.message);
-                window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "frame_processed" });
+            } catch (e) { 
+                window.debug("⚠️ AI Error: " + e.message); 
+                window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "frame_processed" }); 
             } finally { window.isProcessing = false; }
         };
         initAI();
