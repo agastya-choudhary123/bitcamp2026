@@ -1,25 +1,33 @@
 import SwiftUI
 
-// MARK: - Color Palette
+// MARK: - Color Palette (Safeguard Clean White Theme)
 extension Color {
-    // Base
-    static let sdBackground   = Color(red: 0.06, green: 0.06, blue: 0.11)
-    static let sdSurface      = Color(red: 0.10, green: 0.10, blue: 0.17)
-    static let sdCard         = Color(white: 1.0, opacity: 0.06)
-    static let sdCardBorder   = Color(white: 1.0, opacity: 0.10)
-    static let sdForeground   = Color(red: 0.96, green: 0.96, blue: 1.00)
-    static let sdMuted        = Color(red: 0.52, green: 0.51, blue: 0.63)
-    static let sdSubtle       = Color(red: 0.34, green: 0.33, blue: 0.44)
+    // Base - Pivoted to clean white background
+    static let sdBackground   = Color(red: 0.97, green: 0.98, blue: 0.99)
+    static let sdSurface      = Color.white
+    static let sdCardBorder   = Color(white: 0.0, opacity: 0.08)
+    static let sdForeground   = Color(red: 0.05, green: 0.05, blue: 0.10)
+    static let sdMuted        = Color(red: 0.45, green: 0.47, blue: 0.52)
+    static let sdSubtle       = Color(red: 0.65, green: 0.67, blue: 0.72)
 
-    // Brand
-    static let sdPrimary      = Color(red: 0.40, green: 0.33, blue: 0.98) // Vivid indigo
-    static let sdAccent       = Color(red: 0.57, green: 0.36, blue: 1.00) // Soft violet
+    // Brand - Safeguard Vivid Blue (Premium Palette)
+    static let sdPrimary      = Color(red: 0.00, green: 0.45, blue: 0.95) // Vibrant Safety Blue
+    static let sdAccent       = Color(red: 0.05, green: 0.60, blue: 1.00) // Electric Blue
+    static let sdGradientEnd  = Color(red: 0.00, green: 0.35, blue: 0.85)
+    
+    // Backgrounds
+    static let sdBackground   = Color(white: 0.985)
+    static let sdSurface      = Color.white
+    
+    static var sdPrimaryGradient: LinearGradient {
+        LinearGradient(colors: [.sdPrimary, .sdGradientEnd], startPoint: .topLeading, endPoint: .bottomTrailing)
+    }
 
     // Semantic
-    static let sdGreen        = Color(red: 0.22, green: 0.87, blue: 0.60)
-    static let sdYellow       = Color(red: 0.98, green: 0.76, blue: 0.18)
-    static let sdOrange       = Color(red: 1.00, green: 0.55, blue: 0.20)
-    static let sdRed          = Color(red: 0.95, green: 0.27, blue: 0.27)
+    static let sdGreen        = Color(red: 0.05, green: 0.70, blue: 0.45)
+    static let sdYellow       = Color(red: 1.00, green: 0.70, blue: 0.00) // Brighter amber
+    static let sdOrange       = Color(red: 0.95, green: 0.40, blue: 0.05)
+    static let sdRed          = Color(red: 0.90, green: 0.10, blue: 0.10)
 
     // State colors
     static func stateColor(for state: String) -> Color {
@@ -27,8 +35,8 @@ extension Color {
         case "microsleep", "medical": return .sdRed
         case "intoxicated":           return .sdOrange
         case "drowsy":                return .sdYellow
-        case "phone_use":             return Color(red: 0.98, green: 0.60, blue: 0.10)
-        case "distracted":            return Color(red: 0.40, green: 0.75, blue: 1.00)
+        case "phone_use":             return Color(red: 0.90, green: 0.40, blue: 0.05)
+        case "distracted":            return Color(red: 0.00, green: 0.45, blue: 0.75)
         case "alert":                 return .sdGreen
         default:                      return .sdMuted
         }
@@ -48,7 +56,7 @@ extension Color {
     }
 }
 
-// MARK: - Glass Card
+// MARK: - Glass Card (Refined for Light Theme)
 struct GlassCard<Content: View>: View {
     let content: Content
     var cornerRadius: CGFloat = 20
@@ -63,13 +71,13 @@ struct GlassCard<Content: View>: View {
             .padding(16)
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(Color.sdCard)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: cornerRadius)
-                            .stroke(Color.sdCardBorder, lineWidth: 1)
-                    )
+                    .fill(Color.white)
+                    .shadow(color: .black.opacity(0.06), radius: 10, x: 0, y: 4)
             )
-            .shadow(color: .black.opacity(0.25), radius: 12, x: 0, y: 6)
+            .overlay(
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .stroke(Color.sdCardBorder, lineWidth: 1)
+            )
     }
 }
 
@@ -80,17 +88,17 @@ struct StateBadge: View {
     var body: some View {
         HStack(spacing: 7) {
             Image(systemName: Color.stateIcon(for: state))
-                .font(.system(size: 12, weight: .semibold))
+                .font(.system(size: 11, weight: .semibold))
             Text(stateLabel)
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .tracking(0.5)
+                .font(.system(size: 12, weight: .bold, design: .rounded))
+                .tracking(0.3)
         }
         .foregroundColor(Color.stateColor(for: state))
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background(Color.stateColor(for: state).opacity(0.14))
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(Color.stateColor(for: state).opacity(0.08))
         .clipShape(Capsule())
-        .overlay(Capsule().stroke(Color.stateColor(for: state).opacity(0.35), lineWidth: 1))
+        .overlay(Capsule().stroke(Color.stateColor(for: state).opacity(0.2), lineWidth: 1))
     }
 
     var stateLabel: String {
@@ -117,21 +125,17 @@ struct DebugMetricRow: View {
         HStack {
             Text(label)
                 .font(.system(size: 11, design: .monospaced))
-                .foregroundColor(.sdSubtle)
+                .foregroundColor(.sdMuted)
             Spacer()
+            // Value pill for better visibility in light theme
             Text(value)
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .foregroundColor(accent)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(accent.opacity(0.05))
+                .cornerRadius(4)
         }
-        .padding(.vertical, 2)
+        .padding(.vertical, 3)
     }
-}
-
-// MARK: - Blur Helper
-struct Blur: UIViewRepresentable {
-    var style: UIBlurEffect.Style
-    func makeUIView(context: Context) -> UIVisualEffectView {
-        UIVisualEffectView(effect: UIBlurEffect(style: style))
-    }
-    func updateUIView(_ uiView: UIVisualEffectView, context: Context) {}
 }

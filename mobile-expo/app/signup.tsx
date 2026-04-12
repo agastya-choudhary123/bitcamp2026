@@ -30,7 +30,7 @@ export default function SignupScreen() {
             <View style={styles.logoIcon}>
               <Ionicons name="shield-outline" size={48} color={colors.primary} />
             </View>
-            <Text style={styles.title}>Join SafeDrive</Text>
+            <Text style={styles.title}>Join Safeguard</Text>
             <Text style={styles.subtitle}>Start your journey towards a safer driving experience.</Text>
           </View>
 

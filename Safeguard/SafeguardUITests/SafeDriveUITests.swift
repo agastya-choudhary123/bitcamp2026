@@ -1,13 +1,13 @@
 //
-//  SafeDriveUITests.swift
-//  SafeDriveUITests
+//  SafeguardUITests.swift
+//  SafeguardUITests
 //
 //  Created by Sidharth Thodupunoori on 4/11/26.
 //
 
 import XCTest
 
-final class SafeDriveUITests: XCTestCase {
+final class SafeguardUITests: XCTestCase {
 
     override func setUpWithError() throws {
         // Put setup code here. This method is called before the invocation of each test method in the class.

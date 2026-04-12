@@ -1,7 +1,7 @@
 {
-  "name": "driveguard-monorepo",
+  "name": "safeguard-monorepo",
   "private": true,
-  "description": "Monorepo for DriveGuard: AI-powered driver safety system",
+  "description": "Monorepo for Safeguard: AI-powered driver safety system",
   "workspaces": [
     "frontend",
     "server",

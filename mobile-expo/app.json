@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "SafeDrive AI",
+    "name": "Safeguard AI",
     "slug": "bitcamp2026-native",
     "version": "1.0.0",
     "runtimeVersion": {
@@ -12,7 +12,7 @@
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "scheme": "safedrive",
+    "scheme": "safeguard",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -21,7 +21,7 @@
     "ios": {
       "supportsTablet": false,
       "infoPlist": {
-        "NSCameraUsageDescription": "SafeDrive AI uses the front camera to monitor your eyes for signs of drowsiness while driving.",
+        "NSCameraUsageDescription": "Safeguard AI uses the front camera to monitor your eyes for signs of drowsiness while driving.",
         "ITSAppUsesNonExemptEncryption": false
       },
       "bundleIdentifier": "com.ab1955.bitcamp2026native"
@@ -44,7 +44,7 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "SafeDrive AI uses the front camera to monitor your eyes for signs of drowsiness while driving."
+          "cameraPermission": "Safeguard AI uses the front camera to monitor your eyes for signs of drowsiness while driving."
         }
       ]
     ],

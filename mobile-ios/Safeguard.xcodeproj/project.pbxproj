@@ -10,7 +10,7 @@
 		038DD32F68DB3BC951B466E5 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = F7F634AF1546E7B1342F0701 /* Theme.swift */; };
 		2CE03564CCEDD3C73B9E9D04 /* DashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79C60A3EBDE433E0FE05F899 /* DashboardView.swift */; };
 		3484A8AEDB5232487B04556D /* GuideView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 190831B0732968F322D50061 /* GuideView.swift */; };
-		3C88B215D7A761F9A48CE3B0 /* SafeDriveApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5EADD1E2B108C199489291D /* SafeDriveApp.swift */; };
+		3C88B215D7A761F9A48CE3B0 /* SafeguardApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5EADD1E2B108C199489291D /* SafeguardApp.swift */; };
 		470FABCA3E9BF7B5A58B8A3C /* EmergencyContactsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61166F6AFFFA93AA1179AE9D /* EmergencyContactsView.swift */; };
 		5D09612D9500B5A945617E4C /* WaveformView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 776CBC12B300EF323F79BAFF /* WaveformView.swift */; };
 		74C9EF57BCCB63A253406F57 /* ReplaysView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B80215D7FA94386E2DE0A53F /* ReplaysView.swift */; };
@@ -22,13 +22,13 @@
 /* Begin PBXFileReference section */
 		190831B0732968F322D50061 /* GuideView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GuideView.swift; sourceTree = "<group>"; };
 		3E3830148CCC73CFB2B685AB /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
-		4486DEFAB79D08FD56967575 /* SafeDrive.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SafeDrive.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		4486DEFAB79D08FD56967575 /* Safeguard.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Safeguard.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		57050BA4D3E9E83840E9F37C /* SignupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignupView.swift; sourceTree = "<group>"; };
 		61166F6AFFFA93AA1179AE9D /* EmergencyContactsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmergencyContactsView.swift; sourceTree = "<group>"; };
 		6D0A3FAA5A10E3ABBE37CBC9 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		776CBC12B300EF323F79BAFF /* WaveformView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WaveformView.swift; sourceTree = "<group>"; };
 		79C60A3EBDE433E0FE05F899 /* DashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DashboardView.swift; sourceTree = "<group>"; };
-		B5EADD1E2B108C199489291D /* SafeDriveApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeDriveApp.swift; sourceTree = "<group>"; };
+		B5EADD1E2B108C199489291D /* SafeguardApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafeguardApp.swift; sourceTree = "<group>"; };
 		B80215D7FA94386E2DE0A53F /* ReplaysView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReplaysView.swift; sourceTree = "<group>"; };
 		F7F634AF1546E7B1342F0701 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -51,7 +51,7 @@
 				190831B0732968F322D50061 /* GuideView.swift */,
 				3E3830148CCC73CFB2B685AB /* LoginView.swift */,
 				B80215D7FA94386E2DE0A53F /* ReplaysView.swift */,
-				B5EADD1E2B108C199489291D /* SafeDriveApp.swift */,
+				B5EADD1E2B108C199489291D /* SafeguardApp.swift */,
 				57050BA4D3E9E83840E9F37C /* SignupView.swift */,
 				F7F634AF1546E7B1342F0701 /* Theme.swift */,
 				776CBC12B300EF323F79BAFF /* WaveformView.swift */,
@@ -62,7 +62,7 @@
 		C287D7AF1212DED0B79BD928 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				4486DEFAB79D08FD56967575 /* SafeDrive.app */,
+				4486DEFAB79D08FD56967575 /* Safeguard.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -70,9 +70,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		22FF26A24AEB2EDA329E5D77 /* SafeDrive */ = {
+		22FF26A24AEB2EDA329E5D77 /* Safeguard */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = A0380A100E1A9AC5D6884606 /* Build configuration list for PBXNativeTarget "SafeDrive" */;
+			buildConfigurationList = A0380A100E1A9AC5D6884606 /* Build configuration list for PBXNativeTarget "Safeguard" */;
 			buildPhases = (
 				3501E2474FAFD8F8AB2A234D /* Sources */,
 				1A9D190AE0CB6883C1B4C05B /* Resources */,
@@ -81,9 +81,9 @@
 			);
 			dependencies = (
 			);
-			name = SafeDrive;
-			productName = SafeDrive;
-			productReference = 4486DEFAB79D08FD56967575 /* SafeDrive.app */;
+			name = Safeguard;
+			productName = Safeguard;
+			productReference = 4486DEFAB79D08FD56967575 /* Safeguard.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -100,7 +100,7 @@
 					};
 				};
 			};
-			buildConfigurationList = DFB291A9D07A4CFDFE399EE1 /* Build configuration list for PBXProject "SafeDrive" */;
+			buildConfigurationList = DFB291A9D07A4CFDFE399EE1 /* Build configuration list for PBXProject "Safeguard" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -112,7 +112,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				22FF26A24AEB2EDA329E5D77 /* SafeDrive */,
+				22FF26A24AEB2EDA329E5D77 /* Safeguard */,
 			);
 		};
 /* End PBXProject section */
@@ -138,7 +138,7 @@
 				3484A8AEDB5232487B04556D /* GuideView.swift in Sources */,
 				B458A51EBE175F6374A7D925 /* LoginView.swift in Sources */,
 				74C9EF57BCCB63A253406F57 /* ReplaysView.swift in Sources */,
-				3C88B215D7A761F9A48CE3B0 /* SafeDriveApp.swift in Sources */,
+				3C88B215D7A761F9A48CE3B0 /* SafeguardApp.swift in Sources */,
 				B1E2D350E3DA014B33E17C31 /* SignupView.swift in Sources */,
 				038DD32F68DB3BC951B466E5 /* Theme.swift in Sources */,
 				5D09612D9500B5A945617E4C /* WaveformView.swift in Sources */,
@@ -161,7 +161,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.safedrive.SafeDrive;
+				PRODUCT_BUNDLE_IDENTIFIER = com.safeguard.Safeguard;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -180,7 +180,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.safedrive.SafeDrive;
+				PRODUCT_BUNDLE_IDENTIFIER = com.safeguard.Safeguard;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -306,7 +306,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A0380A100E1A9AC5D6884606 /* Build configuration list for PBXNativeTarget "SafeDrive" */ = {
+		A0380A100E1A9AC5D6884606 /* Build configuration list for PBXNativeTarget "Safeguard" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				47F3A34023518ED6D6576015 /* Debug */,
@@ -315,7 +315,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Debug;
 		};
-		DFB291A9D07A4CFDFE399EE1 /* Build configuration list for PBXProject "SafeDrive" */ = {
+		DFB291A9D07A4CFDFE399EE1 /* Build configuration list for PBXProject "Safeguard" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				C7D0FC5B34A32FAEA44975BD /* Debug */,

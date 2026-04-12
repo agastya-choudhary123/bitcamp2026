@@ -1,36 +1,39 @@
 import SwiftUI
 
 struct MainTabView: View {
+    @AppStorage("activeUsername") private var activeUsername: String = ""
+    @AppStorage("driverName") private var driverNameKey: String = ""
+
     var body: some View {
         TabView {
-            // Tab 1: Live Drive (CV Web wrapper)
             DashboardView()
                 .tabItem {
-                    Image(systemName: "steeringwheel")
-                    Text("Drive Mode")
+                    Label("Dashboard", systemImage: "shield.fill")
                 }
-            
-            // Tab 2: Post-Drive Reports Analytics
+
             ReportsView()
                 .tabItem {
-                    Image(systemName: "doc.text.magnifyingglass")
-                    Text("Reports")
+                    Label("Analysis", systemImage: "chart.pie.fill")
                 }
-            
-            // Tab 3: Replays & Reports
-            ReplaysView()
-                .tabItem {
-                    Image(systemName: "play.rectangle.fill")
-                    Text("Replays")
-                }
-            
-            // Tab 4: SOS Emergency Pipeline
+
             EmergencyContactsView()
                 .tabItem {
-                    Image(systemName: "sos.circle.fill")
-                    Text("Emergency")
+                    Label("Circle", systemImage: "person.3.fill")
+                }
+            
+            GuideView()
+                .tabItem {
+                    Label("Help", systemImage: "questionmark.circle.fill")
                 }
         }
-        .accentColor(.sdPrimary) // Use our custom purple theme
+        .accentColor(.sdPrimary) // Use Safeguard Blue for active tab
+        // Use standard light tab appearance
+        .onAppear {
+            let appearance = UITabBarAppearance()
+            appearance.configureWithDefaultBackground()
+            appearance.backgroundColor = .white
+            UITabBar.appearance().standardAppearance = appearance
+            UITabBar.appearance().scrollEdgeAppearance = appearance
+        }
     }
 }

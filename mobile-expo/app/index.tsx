@@ -29,7 +29,7 @@ export default function LoginScreen() {
             <View style={styles.logoIcon}>
               <Ionicons name="shield-checkmark" size={48} color={colors.primary} />
             </View>
-            <Text style={styles.title}>SafeDrive AI</Text>
+            <Text style={styles.title}>Safeguard AI</Text>
             <Text style={styles.subtitle}>Your companion for safe, alert driving journeys.</Text>
           </View>
 
@@ -66,7 +66,7 @@ export default function LoginScreen() {
 
           <TouchableOpacity onPress={() => router.push('/signup')} style={styles.footerLink}>
             <Text style={styles.footerText}>
-              New to SafeDrive?{' '}
+              New to Safeguard?{' '}
               <Text style={styles.link}>Create an account</Text>
             </Text>
           </TouchableOpacity>

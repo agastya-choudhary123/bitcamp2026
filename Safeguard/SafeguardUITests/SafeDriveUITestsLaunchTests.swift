@@ -1,13 +1,13 @@
 //
-//  SafeDriveUITestsLaunchTests.swift
-//  SafeDriveUITests
+//  SafeguardUITestsLaunchTests.swift
+//  SafeguardUITests
 //
 //  Created by Sidharth Thodupunoori on 4/11/26.
 //
 
 import XCTest
 
-final class SafeDriveUITestsLaunchTests: XCTestCase {
+final class SafeguardUITestsLaunchTests: XCTestCase {
 
     override class var runsForEachTargetApplicationUIConfiguration: Bool {
         true

@@ -1,6 +1,6 @@
-# DriveGuard
+# Safeguard
 
-**AI-powered real-time driver safety system.** DriveGuard monitors drivers using computer vision to detect drowsiness, distraction, and forward road hazards — automatically sending emergency SMS alerts with GPS location when danger is detected.
+**AI-powered real-time driver safety system.** Safeguard monitors drivers using computer vision to detect drowsiness, distraction, and forward road hazards — automatically sending emergency SMS alerts with GPS location when danger is detected.
 
 Built at BitCamp 2026.
 

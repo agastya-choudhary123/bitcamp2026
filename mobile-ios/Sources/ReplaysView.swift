@@ -20,39 +20,76 @@ struct ReplaysView: View {
         ZStack {
             Color.sdBackground.ignoresSafeArea()
             
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 0) {
                 // Header
-                HStack {
+                HStack(spacing: 16) {
                     Button(action: { presentationMode.wrappedValue.dismiss() }) {
                         Image(systemName: "chevron.left")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.sdForeground)
                             .padding(12)
-                            .background(Color.sdCard)
+                            .background(Color.white)
                             .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.05), radius: 4)
                     }
-                    VStack(alignment: .leading) {
-                        Text("Incident Replays").font(.title2).bold()
-                        Text("CLOUD HOSTED SAFETY CLIPS").font(.caption2).kerning(1).foregroundColor(.sdMuted)
+                    
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Safety Replays")
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundColor(.sdForeground)
+                        Text("SECURE CLOUD INCIDENT CLIPS")
+                            .font(.system(size: 10, weight: .black))
+                            .kerning(1)
+                            .foregroundColor(.sdPrimary)
                     }
                     Spacer()
-                    Text("\(sortedReplays.count) clips").font(.caption).foregroundColor(.sdMuted)
                 }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                .padding(.bottom, 24)
                 
                 if isLoading {
                     Spacer()
-                    HStack { Spacer(); ProgressView().progressViewStyle(CircularProgressViewStyle(tint: .white)); Spacer() }
+                    HStack { 
+                        Spacer()
+                        VStack(spacing: 16) {
+                            ProgressView()
+                                .tint(.sdPrimary)
+                            Text("Fetching clips...")
+                                .font(.caption)
+                                .foregroundColor(.sdMuted)
+                        }
+                        Spacer() 
+                    }
                     Spacer()
                 } else if sortedReplays.isEmpty {
                     Spacer()
-                    VStack(spacing: 12) {
-                        Image(systemName: "film.slash").font(.system(size: 40)).foregroundColor(.sdMuted)
-                        Text("No incident clips yet").foregroundColor(.sdMuted)
-                        Text("Clips are recorded automatically when an anomaly is detected.").font(.caption).foregroundColor(.sdMuted).multilineTextAlignment(.center)
+                    VStack(spacing: 20) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.sdPrimary.opacity(0.05))
+                                .frame(width: 100, height: 100)
+                            Image(systemName: "video.slash")
+                                .font(.system(size: 32, weight: .bold))
+                                .foregroundColor(.sdSubtle)
+                        }
+                        VStack(spacing: 8) {
+                            Text("No history yet")
+                                .font(.headline)
+                                .foregroundColor(.sdForeground)
+                            Text("Incident clips are recorded automatically during anomalous behavior.")
+                                .font(.system(size: 14))
+                                .foregroundColor(.sdMuted)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 40)
+                                .lineSpacing(4)
+                        }
                     }
                     .frame(maxWidth: .infinity)
                     Spacer()
                 } else {
-                    ScrollView {
-                        VStack(spacing: 14) {
+                    ScrollView(showsIndicators: false) {
+                        VStack(spacing: 16) {
                             ForEach(sortedReplays) { session in
                                 ReplayCard(session: session) {
                                     if let urlStr = session.videoUrl, let url = URL(string: urlStr) {
@@ -62,10 +99,11 @@ struct ReplaysView: View {
                                 }
                             }
                         }
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
                     }
                 }
             }
-            .padding()
         }
         .navigationBarHidden(true)
         .onAppear(perform: loadReplays)
@@ -80,10 +118,12 @@ struct ReplaysView: View {
         guard !activeUsername.isEmpty else { return }
         isLoading = true
         NetworkManager.shared.request(endpoint: "/replay/\(activeUsername)") { (result: Result<[NetworkManager.ReplayModel], Error>) in
-            isLoading = false
-            switch result {
-            case .success(let fetched): replays = fetched
-            case .failure(let err): print("Replays failed: \(err)")
+            DispatchQueue.main.async {
+                isLoading = false
+                switch result {
+                case .success(let fetched): replays = fetched
+                case .failure(let err): print("Replays failed: \(err)")
+                }
             }
         }
     }
@@ -95,7 +135,6 @@ struct ReplayCard: View {
     
     var formattedTime: String {
         let raw = session.sessionEnd ?? session.sessionStart ?? ""
-        // Parse ISO8601 string
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         
@@ -105,7 +144,6 @@ struct ReplayCard: View {
             display.timeStyle = .short
             return display.string(from: date)
         }
-        // Fallback: show raw date prefix
         return String(raw.prefix(16)).replacingOccurrences(of: "T", with: " ")
     }
     
@@ -115,46 +153,63 @@ struct ReplayCard: View {
     
     var body: some View {
         GlassCard {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 14) {
                 HStack(alignment: .top) {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("Incident Clip")
-                            .font(.headline)
+                        Text("Anomalous Event")
+                            .font(.system(size: 16, weight: .bold))
                             .foregroundColor(.sdForeground)
                         HStack(spacing: 4) {
-                            Image(systemName: "clock").font(.caption2)
-                            Text(formattedTime).font(.caption).foregroundColor(.sdMuted)
+                            Image(systemName: "clock")
+                                .font(.system(size: 10))
+                            Text(formattedTime)
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(.sdMuted)
                         }
                     }
                     Spacer()
-                    Label("ANOMALY", systemImage: "exclamationmark.triangle.fill")
-                        .font(.caption2).bold()
-                        .foregroundColor(.sdRed)
-                        .padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(Color.sdRed.opacity(0.15))
-                        .cornerRadius(8)
+                    Text("ALERT")
+                        .font(.system(size: 9, weight: .black))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.sdRed)
+                        .clipShape(Capsule())
                 }
                 
-                Divider().background(Color.sdCardBorder)
+                Divider()
+                    .background(Color.sdCardBorder)
                 
                 HStack {
-                    Label(session.driverName, systemImage: "person.fill")
-                        .font(.caption).foregroundColor(.sdMuted)
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(Color.sdPrimary.opacity(0.1))
+                            .frame(width: 24, height: 24)
+                            .overlay(Image(systemName: "person.fill").font(.system(size: 10)).foregroundColor(.sdPrimary))
+                        Text(session.driverName)
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.sdMuted)
+                    }
                     Spacer()
                     if hasVideo {
                         Button(action: onPlay) {
                             HStack(spacing: 6) {
-                                Image(systemName: "play.fill").font(.caption)
-                                Text("Play Clip").font(.caption).bold()
+                                Image(systemName: "play.fill")
+                                    .font(.system(size: 10))
+                                Text("WATCH")
+                                    .font(.system(size: 11, weight: .black))
                             }
                             .foregroundColor(.white)
-                            .padding(.horizontal, 14).padding(.vertical, 8)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
                             .background(Color.sdPrimary)
                             .cornerRadius(10)
+                            .shadow(color: .sdPrimary.opacity(0.3), radius: 6, y: 3)
                         }
                     } else {
-                        Text("Processing...")
-                            .font(.caption).foregroundColor(.sdMuted)
+                        Text("Syncing...")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.sdSubtle)
                     }
                 }
             }
@@ -181,6 +236,9 @@ struct VideoPlayerSheet: View {
                 }
                 VideoPlayer(player: AVPlayer(url: url))
                     .ignoresSafeArea(edges: .bottom)
+                    .onAppear {
+                        // iOS 16+ player can be tricky in sheets; Ensure it plays
+                    }
             }
         }
     }

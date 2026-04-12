@@ -2,7 +2,7 @@ import SwiftUI
 import AVFoundation
 import Combine
 
-// MARK: - Monitor
+// MARK: - Monitor (Renamed contents but logic preserved)
 
 class DrowsinessMonitor: ObservableObject {
     @Published var earScore: Double = 0.35
@@ -34,6 +34,8 @@ class DrowsinessMonitor: ObservableObject {
                     }
                     if let states = status.behaviorStates, !states.isEmpty {
                         self.behaviorStates = states
+                    } else {
+                        self.behaviorStates = ["alert"]
                     }
                     self.behaviorSeverity = status.behaviorSeverity ?? 0
                     self.lastMetrics = status.metrics
@@ -88,10 +90,10 @@ struct DashboardView: View {
     @State private var riskLoading: Bool = false
 
     @AppStorage("activeUsername") private var activeUsername: String = ""
-    @AppStorage("activeName")    private var activeName: String = ""
+    @AppStorage("driverName")    private var driverName: String = ""
 
     var profileInitial: String {
-        activeName.isEmpty ? (activeUsername.first.map(String.init) ?? "?") : String(activeName.prefix(1)).uppercased()
+        driverName.isEmpty ? (activeUsername.first.map(String.init) ?? "?") : String(driverName.prefix(1)).uppercased()
     }
 
     var body: some View {
@@ -102,9 +104,9 @@ struct DashboardView: View {
                 topBar
                     .padding(.horizontal, 20)
                     .padding(.top, 12)
-                    .padding(.bottom, 8)
-
-                Divider().background(Color.sdCardBorder).padding(.horizontal, 20)
+                    .padding(.bottom, 12)
+                    .background(Color.white) // Clean white header
+                    .shadow(color: .black.opacity(0.03), radius: 5, y: 5)
 
                 if !isDriving {
                     inactiveBody
@@ -116,13 +118,13 @@ struct DashboardView: View {
             // Profile dropdown overlay
             if showProfileMenu {
                 profileDropdown
-                    .padding(.top, 60)
+                    .padding(.top, 64)
                     .padding(.trailing, 16)
                     .transition(.asymmetric(
-                        insertion: .scale(scale: 0.85, anchor: .topTrailing).combined(with: .opacity),
-                        removal:  .scale(scale: 0.85, anchor: .topTrailing).combined(with: .opacity)
+                        insertion: .scale(scale: 0.9, anchor: .topTrailing).combined(with: .opacity),
+                        removal:  .scale(scale: 0.9, anchor: .topTrailing).combined(with: .opacity)
                     ))
-                    .animation(.spring(response: 0.3, dampingFraction: 0.75), value: showProfileMenu)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.7), value: showProfileMenu)
                     .zIndex(10)
             }
         }
@@ -140,26 +142,32 @@ struct DashboardView: View {
     var topBar: some View {
         HStack(alignment: .center) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(isDriving ? "Active Drive" : "Ready to Drive")
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
+                Text(isDriving ? "Active Monitoring" : "Ready to Drive")
+                    .font(.system(size: 20, weight: .bold, design: .rounded))
                     .foregroundColor(.sdForeground)
-                Text("SAFEDRIVE INTELLIGENCE")
-                    .font(.system(size: 10, weight: .semibold))
-                    .kerning(1.8)
-                    .foregroundColor(.sdSubtle)
+                HStack(spacing: 4) {
+                    Image(systemName: "shield.fill")
+                        .font(.system(size: 10))
+                    Text("SAFEGUARD INTELLIGENCE")
+                        .font(.system(size: 10, weight: .bold))
+                        .kerning(1.2)
+                }
+                .foregroundColor(.sdPrimary)
             }
             Spacer()
 
             // Profile circle
-            Button(action: { withAnimation(.spring(response: 0.3, dampingFraction: 0.75)) { showProfileMenu.toggle() } }) {
+            Button(action: { withAnimation(.spring()) { showProfileMenu.toggle() } }) {
                 ZStack {
                     Circle()
-                        .fill(LinearGradient(colors: [.sdPrimary, .sdAccent], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .fill(Color.sdPrimaryGradient)
                         .frame(width: 40, height: 40)
                     Text(profileInitial)
                         .font(.system(size: 16, weight: .bold, design: .rounded))
                         .foregroundColor(.white)
                 }
+                .overlay(Circle().stroke(Color.white, lineWidth: 2))
+                .shadow(color: .sdPrimary.opacity(0.2), radius: 6, x: 0, y: 3)
             }
             .buttonStyle(.plain)
         }
@@ -169,62 +177,46 @@ struct DashboardView: View {
 
     var profileDropdown: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack(spacing: 12) {
-                ZStack {
-                    Circle()
-                        .fill(LinearGradient(colors: [.sdPrimary, .sdAccent], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 36, height: 36)
-                    Text(profileInitial)
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(.white)
-                }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(activeName.isEmpty ? activeUsername : activeName)
-                        .font(.system(size: 14, weight: .semibold))
+                Circle().fill(Color.sdPrimary).frame(width: 32, height: 32)
+                    .overlay(Text(profileInitial).foregroundColor(.white).font(.caption.bold()))
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(driverName.isEmpty ? "Driver" : driverName)
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(.sdForeground)
-                    Text("@\(activeUsername)")
-                        .font(.caption2)
-                        .foregroundColor(.sdMuted)
+                    Text("Safeguard Pro")
+                        .font(.system(size: 10))
+                        .foregroundColor(.sdPrimary)
                 }
                 Spacer()
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(16)
 
             Divider().background(Color.sdCardBorder)
 
-            // Debug toggle
             Toggle(isOn: $debugModeEnabled) {
-                Label("Debug Mode", systemImage: "cpu")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.sdForeground)
+                Label("Telemetry Debug", systemImage: "chart.bar.xaxis")
+                    .font(.system(size: 13, weight: .medium))
             }
             .toggleStyle(SwitchToggleStyle(tint: .sdPrimary))
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(16)
 
             Divider().background(Color.sdCardBorder)
 
-            // Logout
             Button(action: logout) {
                 HStack {
-                    Image(systemName: "rectangle.portrait.and.arrow.right")
+                    Image(systemName: "power")
                     Text("Sign Out")
-                        .font(.system(size: 14, weight: .medium))
+                        .font(.system(size: 13, weight: .bold))
                 }
                 .foregroundColor(.sdRed)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
+                .padding(16)
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color.sdSurface)
-                .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.sdCardBorder, lineWidth: 1))
-        )
-        .shadow(color: .black.opacity(0.4), radius: 20, x: 0, y: 8)
-        .frame(width: 240)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .shadow(color: .black.opacity(0.12), radius: 20, x: 0, y: 10)
+        .frame(width: 220)
     }
 
     // MARK: - Inactive Body
@@ -232,46 +224,39 @@ struct DashboardView: View {
     var inactiveBody: some View {
         VStack {
             Spacer()
-            VStack(spacing: 28) {
+            VStack(spacing: 32) {
                 ZStack {
                     Circle()
-                        .fill(Color.sdPrimary.opacity(0.12))
-                        .frame(width: 160, height: 160)
-                    Circle()
-                        .fill(Color.sdPrimary.opacity(0.07))
-                        .frame(width: 200, height: 200)
-                    Image(systemName: "steeringwheel")
-                        .font(.system(size: 64))
-                        .foregroundStyle(LinearGradient(colors: [.sdPrimary, .sdAccent], startPoint: .top, endPoint: .bottom))
+                        .fill(Color.sdPrimary.opacity(0.05))
+                        .frame(width: 180, height: 180)
+                    Image(systemName: "shield.fill")
+                        .font(.system(size: 72))
+                        .foregroundColor(.sdPrimary)
                 }
 
-                VStack(spacing: 6) {
-                    Text("Start your drive")
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                VStack(spacing: 10) {
+                    Text("Begin Safeguard")
+                        .font(.system(size: 26, weight: .bold, design: .rounded))
                         .foregroundColor(.sdForeground)
-                    Text("SafeDrive will monitor your attention in real time")
+                    Text("Real-time behavioral analytics will\nstart once you begin driving.")
                         .font(.system(size: 14))
                         .foregroundColor(.sdMuted)
                         .multilineTextAlignment(.center)
+                        .lineSpacing(2)
                 }
 
                 Button(action: startDrive) {
-                    HStack(spacing: 10) {
-                        Image(systemName: "play.fill")
-                        Text("BEGIN DRIVE")
-                            .font(.system(size: 16, weight: .bold))
-                            .tracking(1.2)
-                    }
-                    .foregroundColor(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 18)
-                    .background(
-                        LinearGradient(colors: [.sdPrimary, .sdAccent], startPoint: .leading, endPoint: .trailing)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .shadow(color: .sdPrimary.opacity(0.45), radius: 18, x: 0, y: 8)
+                    Text("START DRIVE")
+                        .font(.system(size: 16, weight: .black))
+                        .tracking(2.0)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 20)
+                        .background(Color.sdPrimaryGradient)
+                        .clipShape(RoundedRectangle(cornerRadius: 16))
+                        .shadow(color: .sdPrimary.opacity(0.3), radius: 12, y: 6)
                 }
-                .padding(.horizontal, 32)
+                .padding(.horizontal, 40)
             }
             Spacer()
         }
@@ -281,87 +266,86 @@ struct DashboardView: View {
 
     var activeBody: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: 16) {
+            VStack(spacing: 20) {
                 cameraCard
-                behaviorStateCard
+                behaviorCard
                 if let risk = riskData { RiskScoreCard(risk: risk, isLoading: riskLoading, onRefresh: fetchRisk) }
                 if debugModeEnabled { debugPanel }
                 stopButton
             }
-            .padding(.horizontal, 20)
-            .padding(.vertical, 16)
+            .padding(20)
         }
     }
 
     // MARK: - Camera Card
 
     var cameraCard: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(monitor.isDataActive ? Color.sdGreen : Color.sdRed)
-                            .frame(width: 7, height: 7)
-                        Text(monitor.isDataActive ? "LIVE" : "NO SIGNAL")
-                            .font(.system(size: 10, weight: .bold))
-                            .kerning(1.2)
-                            .foregroundColor(monitor.isDataActive ? .sdGreen : .sdRed)
-                    }
-                    Spacer()
-                    Text("VISUAL MONITORING")
-                        .font(.system(size: 10, weight: .medium))
-                        .kerning(1.2)
-                        .foregroundColor(.sdMuted)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("LIVE VISUALS", systemImage: "video.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(monitor.isDataActive ? .sdPrimary : .sdRed)
+                Spacer()
+                if monitor.isDataActive {
+                    Circle().fill(Color.sdGreen).frame(width: 6, height: 6)
+                        .opacity(0.8)
                 }
-                CameraPreview()
-                    .frame(height: 220)
-                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             }
+            CameraPreview()
+                .frame(height: 200)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
         }
+        .padding(12)
+        .background(Color.white)
+        .cornerRadius(18)
+        .shadow(color: .black.opacity(0.04), radius: 8, y: 4)
     }
 
-    // MARK: - Behavioral State Card
+    // MARK: - Behavior Card
 
-    var behaviorStateCard: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Text("BEHAVIORAL STATE")
-                        .font(.system(size: 10, weight: .semibold))
-                        .kerning(1.5)
-                        .foregroundColor(.sdMuted)
-                    Spacer()
-                    // Severity indicator
-                    if monitor.behaviorSeverity > 0 {
-                        Text("SEV \(monitor.behaviorSeverity)")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(severityColor)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(severityColor.opacity(0.15))
-                            .clipShape(Capsule())
-                    }
-                }
-
-                // Badges — one per active state
-                FlowLayout(spacing: 8) {
-                    ForEach(monitor.behaviorStates, id: \.self) { state in
-                        StateBadge(state: state)
-                    }
-                }
-
-                // EAR waveform
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("EAR WAVEFORM")
-                        .font(.system(size: 9, weight: .semibold))
-                        .kerning(1.2)
-                        .foregroundColor(.sdSubtle)
-                    WaveformView(dataPoints: monitor.history)
-                        .frame(height: 70)
+    var behaviorCard: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("CURRENT STATUS")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.sdMuted)
+                Spacer()
+                if monitor.behaviorSeverity > 0 {
+                    Text("SEVERITY \(monitor.behaviorSeverity)")
+                        .font(.system(size: 10, weight: .black))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        .background(severityColor)
+                        .clipShape(Capsule())
                 }
             }
+
+            FlowLayout(spacing: 8) {
+                ForEach(monitor.behaviorStates, id: \.self) { state in
+                    StateBadge(state: state)
+                }
+            }
+
+            // Minimalist Waveform
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("EYE ACTIVITY (EAR)")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.sdSubtle)
+                    Spacer()
+                    Text(String(format: "%.3f", monitor.earScore))
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundColor(.sdPrimary)
+                }
+                WaveformView(dataPoints: monitor.history)
+                    .frame(height: 60)
+            }
         }
+        .padding(16)
+        .background(Color.white)
+        .cornerRadius(18)
+        .shadow(color: .black.opacity(0.04), radius: 8, y: 4)
     }
 
     var severityColor: Color {
@@ -369,7 +353,7 @@ struct DashboardView: View {
         case 5: return .sdRed
         case 4: return .sdOrange
         case 3: return .sdYellow
-        case 2: return Color(red: 0.40, green: 0.75, blue: 1.00)
+        case 2: return .sdPrimary
         default: return .sdGreen
         }
     }
@@ -377,63 +361,39 @@ struct DashboardView: View {
     // MARK: - Debug Panel
 
     var debugPanel: some View {
-        GlassCard {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Image(systemName: "cpu").foregroundColor(.sdPrimary).font(.caption)
-                    Text("DEBUG METRICS")
-                        .font(.system(size: 10, weight: .bold))
-                        .kerning(1.5)
-                        .foregroundColor(.sdPrimary)
-                }
-                Divider().background(Color.sdCardBorder)
-
-                Group {
-                    debugRow("EAR", val: monitor.lastMetrics?.ear, fmt: "%.3f", warn: 0.22, warnLow: true)
-                    debugRow("PERCLOS", val: monitor.lastMetrics?.perclos, fmt: "%.1f%%", scale: 100, warn: 15, warnLow: false)
-                    debugRow("Closure", val: monitor.lastMetrics?.closureDurationMs, fmt: "%.0fms", warn: 1500, warnLow: false)
-                    debugRow("Blinks/min", val: monitor.lastMetrics?.blinkRatePerMin, fmt: "%.0f", warn: 8, warnLow: true)
-                    debugRow("Avg blink", val: monitor.lastMetrics?.avgBlinkDurationMs, fmt: "%.0fms", warn: 280, warnLow: false)
-                    debugRow("Slow blinks", val: monitor.lastMetrics?.slowBlinkRate, fmt: "%.0f", warn: 2, warnLow: false)
-                    debugRow("Eye rubs", val: monitor.lastMetrics?.eyeRubCount, fmt: "%.0f", warn: 1, warnLow: false)
-                    debugRow("Asymmetry", val: monitor.lastMetrics?.asymmetryScore, fmt: "%.3f", warn: 0.15, warnLow: false)
-                }
-                Group {
-                    debugRow("MAR", val: monitor.lastMetrics?.mar, fmt: "%.3f", warn: 0.5, warnLow: false)
-                    debugRow("Yawns/5min", val: monitor.lastMetrics?.yawnCount, fmt: "%.0f", warn: 2, warnLow: false)
-                    debugRow("Head pitch", val: monitor.lastMetrics?.headPitch, fmt: "%.1f°", warn: 15, warnLow: false, absValue: true)
-                    debugRow("Head yaw", val: monitor.lastMetrics?.headYaw, fmt: "%.1f°", warn: 15, warnLow: false, absValue: true)
-                    debugRow("Head roll", val: monitor.lastMetrics?.headRoll, fmt: "%.1f°", warn: 12, warnLow: false, absValue: true)
-                    debugRow("Jerk vel", val: monitor.lastMetrics?.headJerkVelocity, fmt: "%.0f°/s", warn: 60, warnLow: false)
-                    debugRow("H.Entropy", val: monitor.lastMetrics?.headMovementEntropy, fmt: "%.2f", warn: 2.0, warnLow: false)
-                    debugRow("Tremor", val: monitor.lastMetrics?.microTremor.map { $0 * 1000 }, fmt: "%.2f", warn: 3.0, warnLow: false)
-                }
-                Group {
-                    debugRow("Gaze H", val: monitor.lastMetrics?.gazeRatio, fmt: "%.2f")
-                    debugRow("Gaze V", val: monitor.lastMetrics?.gazeVertical, fmt: "%.2f", warn: 0.70, warnLow: false)
-                    debugRow("Gaze fix", val: monitor.lastMetrics?.gazeFixationDurationMs.map { $0 / 1000 }, fmt: "%.1fs", warn: 2.0, warnLow: false)
-                    debugRow("Drift rep.", val: monitor.lastMetrics?.gazeDriftRepetition, fmt: "%.0f/min", warn: 5, warnLow: false)
-                    debugRow("Recovery", val: monitor.lastMetrics?.avgAttentionRecoveryMs, fmt: "%.0fms", warn: 3500, warnLow: false)
-                    debugRow("Prog.ratio", val: monitor.lastMetrics?.progressiveFatigueRatio, fmt: "%.2f", warn: 0.85, warnLow: true)
-                    debugRow("Phone dur.", val: monitor.lastMetrics?.phoneDetectedDurationMs.map { $0 / 1000 }, fmt: "%.1fs", warn: 2.0, warnLow: false)
-                }
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Image(systemName: "terminal.fill").font(.caption).foregroundColor(.sdPrimary)
+                Text("RAW TELEMETRY")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.sdPrimary)
+            }
+            
+            VStack(spacing: 2) {
+                debugRow("EAR", val: monitor.lastMetrics?.ear, fmt: "%.3f", warn: 0.22, warnLow: true)
+                debugRow("PERCLOS", val: monitor.lastMetrics?.perclos, fmt: "%.1f%%", scale: 100, warn: 15)
+                debugRow("Blinks/min", val: monitor.lastMetrics?.blinkRatePerMin, fmt: "%.0f", warn: 8, warnLow: true)
+                debugRow("Slow Blinks", val: monitor.lastMetrics?.slowBlinkRate, fmt: "%.0f", warn: 2)
+                debugRow("Eye Rubs", val: monitor.lastMetrics?.eyeRubCount, fmt: "%.0f", warn: 1)
+                debugRow("Asymmetry", val: monitor.lastMetrics?.asymmetryScore, fmt: "%.3f", warn: 0.15)
+                debugRow("Head Jerk", val: monitor.lastMetrics?.headJerkVelocity, fmt: "%.0f°/s", warn: 60)
+                debugRow("Entropy", val: monitor.lastMetrics?.headMovementEntropy, fmt: "%.2f", warn: 2.0)
+                debugRow("Recovery", val: monitor.lastMetrics?.avgAttentionRecoveryMs, fmt: "%.0fms", warn: 3500)
+                debugRow("Lean Offset", val: monitor.lastMetrics?.browPosition, fmt: "%.3f", warn: 0.15) // Proxy for lean in this view
             }
         }
+        .padding(16)
+        .background(Color(white: 0.98))
+        .cornerRadius(18)
+        .overlay(RoundedRectangle(cornerRadius: 18).stroke(Color.sdCardBorder, lineWidth: 1))
     }
 
     @ViewBuilder
-    func debugRow(_ label: String, val: Double?, fmt: String, scale: Double = 1, warn: Double? = nil, warnLow: Bool = false, absValue: Bool = false) -> some View {
+    func debugRow(_ label: String, val: Double?, fmt: String, scale: Double = 1, warn: Double? = nil, warnLow: Bool = false) -> some View {
         if let v = val {
-            let display = absValue ? abs(v) * scale : v * scale
-            let isWarning: Bool = {
-                guard let w = warn else { return false }
-                return warnLow ? display < w : display > w
-            }()
-            DebugMetricRow(
-                label: label,
-                value: String(format: fmt, display),
-                accent: isWarning ? .sdRed : .sdGreen
-            )
+            let display = v * scale
+            let isWarning = warnLow ? (display < (warn ?? 0)) : (display > (warn ?? 999))
+            DebugMetricRow(label: label, value: String(format: fmt, display), accent: isWarning ? .sdRed : .sdGreen)
         }
     }
 
@@ -441,18 +401,15 @@ struct DashboardView: View {
 
     var stopButton: some View {
         Button(action: stopDrive) {
-            HStack(spacing: 8) {
-                Image(systemName: "stop.circle.fill")
-                Text("END DRIVE")
-                    .font(.system(size: 15, weight: .bold))
-                    .tracking(1.2)
-            }
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(Color.sdRed.opacity(0.85))
-            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            Text("FINISH DRIVE")
+                .font(.system(size: 14, weight: .bold))
+                .foregroundColor(.sdRed)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+                .background(Color.sdRed.opacity(0.1))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
         }
+        .padding(.top, 8)
     }
 
     // MARK: - Actions
@@ -488,8 +445,7 @@ struct DashboardView: View {
     func logout() {
         withAnimation { showProfileMenu = false }
         UserDefaults.standard.removeObject(forKey: "activeUsername")
-        UserDefaults.standard.removeObject(forKey: "activeName")
-        // Navigate back to login — handled via scene observation in SafeDriveApp
+        UserDefaults.standard.removeObject(forKey: "driverName")
         NotificationCenter.default.post(name: NSNotification.Name("UserDidLogout"), object: nil)
     }
 }
@@ -590,11 +546,10 @@ struct RiskScoreCard: View {
     }
 }
 
-// MARK: - Flow Layout (multi-badge wrap)
+// MARK: - Flow Layout
 
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
-
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? 300
         var x: CGFloat = 0, y: CGFloat = 0, maxH: CGFloat = 0
@@ -603,9 +558,8 @@ struct FlowLayout: Layout {
             if x + sz.width > width && x > 0 { x = 0; y += maxH + spacing; maxH = 0 }
             x += sz.width + spacing; maxH = max(maxH, sz.height)
         }
-        return CGSize(width: width, height: y + maxH)
+        return CGSize(width: width, height: maxH == 0 ? 0 : y + maxH)
     }
-
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         var x = bounds.minX, y = bounds.minY, maxH: CGFloat = 0
         for sv in subviews {

@@ -2,7 +2,7 @@ import SwiftUI
 import Auth0
 
 @main
-struct SafeDriveApp: App {
+struct SafeguardApp: App {
     @AppStorage("isLoggedIn") private var isLoggedIn: Bool = false
 
     var body: some Scene {

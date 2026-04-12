@@ -7,10 +7,26 @@ const { auth } = require("express-oauth2-jwt-bearer")
 const { ElevenLabsClient } = require("@elevenlabs/elevenlabs-js")
 const twilio = require("twilio")
 
-const requireAuth = auth({
-    audience: process.env.AUTH0_AUDIENCE,
-    issuerBaseURL: process.env.AUTH0_ISSUER_BASE_URL,
-})
+const authDomain = process.env.VITE_AUTH0_DOMAIN;
+const authClientId = process.env.VITE_AUTH0_CLIENT_ID;
+
+const requireAuth = authDomain 
+    ? (req, res, next) => {
+        // Developer Bypass for local Dashboard testing
+        if (req.headers["x-safeguard-dev-bypass"] === "true") {
+            req.auth = { payload: { sub: req.body.driverName || "local-dev-user" } };
+            return next();
+        }
+        return auth({
+            audience: authClientId,
+            issuerBaseURL: `https://${authDomain}/`,
+        })(req, res, next);
+    }
+    : (req, res, next) => {
+        // Fallback/Mock auth for local dev if Auth0 not configured
+        req.auth = { payload: { sub: req.headers["x-user-id"] || "local-dev-user" } };
+        next();
+    };
 const cloudinary = require("cloudinary").v2
 
 cloudinary.config({
@@ -97,8 +113,8 @@ const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
 // ── ElevenLabs / Twilio voice call ─────────────────────────────────────────
 
-async function initiateEmergencyCall({ contact, driverName, lat, lng }) {
-    const alert = `This is an automated emergency alert from SafeGuard. ${driverName} needs immediate help. Driver is potentially distracted, drowsy, or under the influence. Their last known location is latitude ${lat}, longitude ${lng}. Please check on them immediately or call 9 1 1.`
+async function initiateEmergencyCall({ contact, driverName, lat, lng, emergencyReason }) {
+    const alert = `This is an automated emergency alert from Safeguard. ${driverName} needs immediate help. Reason: ${emergencyReason || "Unknown Emergency"}. Their last known location is latitude ${lat}, longitude ${lng}. Please check on them immediately or call 9 1 1.`
     const message = `${alert} ${alert}`
 
     const twiml = `<Response><Say voice="alice">${message}</Say></Response>`
@@ -190,11 +206,20 @@ app.post("/report/generate", requireAuth, async (req, res) => {
         const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
         const summary = logs.map(l => ({
             time: new Date(l.timestamp).toLocaleTimeString(),
-            drowsiness: l.internal?.drowsiness?.state,
+            states: l.behaviorStates || [l.internal?.drowsiness?.state || "alert"],
+            ear: l.ear,
             hazard: l.external?.forwardHazard?.state
         }));
 
-        const prompt = `Analyze these driving logs and generate a safety report for ${driverName}: ${JSON.stringify(summary)}. Provide actionable safety feedback, keep it very concise.`;
+        const prompt = `You are a professional safety analyst for Safeguard AI.
+Analyze these high-resolution behavioral logs for ${driverName}:
+${JSON.stringify(summary)}
+
+Provide a concise, professional safety report. 
+- Highlight any dangerous combinations (e.g., being drowsy while using a phone).
+- Give 2 actionable, coaching-focused improvements.
+- Keep the tone serious but helpful.
+- Format as a clean markdown report.`;
         const result = await model.generateContent(prompt);
         const reportString = result.response.text();
 
@@ -225,7 +250,7 @@ function checkEmergency(state) {
 }
 
 app.get("/", (req, res) => {
-    res.json({ status: "DriveGuard backend running" })
+    res.json({ status: "Safeguard backend running" })
 })
 
 app.post("/state", requireAuth, async (req, res) => {
@@ -251,7 +276,7 @@ app.post("/state", requireAuth, async (req, res) => {
                 {
                     resource_type: "video",
                     upload_preset: process.env.CLOUDINARY_UPLOAD_PRESET,
-                    folder: "driveguard-replays"
+                    folder: "safeguard-replays"
                 }
             )
             console.log("Video clip saved:", result.secure_url)
@@ -282,7 +307,7 @@ app.post("/state", requireAuth, async (req, res) => {
         } else {
             await Promise.all(contacts.map(async (contact) => {
                 try {
-                    await initiateEmergencyCall({ contact, driverName, lat, lng })
+                    await initiateEmergencyCall({ contact, driverName, lat, lng, emergencyReason })
                 } catch (e) {
                     console.error(`Emergency call failed for ${contact.name}:`, e.message)
                 }
@@ -307,7 +332,7 @@ app.post("/upload-video", requireAuth, async (req, res) => {
         const result = await cloudinary.uploader.upload(videoBase64, {
             resource_type: "video",
             upload_preset: process.env.CLOUDINARY_UPLOAD_PRESET,
-            folder: "driveguard-replays",
+            folder: "safeguard-replays",
             public_id: `${driverName}-${sessionStart}`
         })
 

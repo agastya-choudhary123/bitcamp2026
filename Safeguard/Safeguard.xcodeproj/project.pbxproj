@@ -6,56 +6,60 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		510A27FB2F8B0A3B009E9A5C /* Auth0 in Frameworks */ = {isa = PBXBuildFile; productRef = 510A27FA2F8B0A3B009E9A5C /* Auth0 */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		510A27372F8AAAB8009E9A5C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 510A27212F8AAAB7009E9A5C /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 510A27282F8AAAB7009E9A5C;
-			remoteInfo = SafeDrive;
+			remoteInfo = Safeguard;
 		};
 		510A27412F8AAAB8009E9A5C /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 510A27212F8AAAB7009E9A5C /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 510A27282F8AAAB7009E9A5C;
-			remoteInfo = SafeDrive;
+			remoteInfo = Safeguard;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		510A27292F8AAAB7009E9A5C /* SafeDrive.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SafeDrive.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		510A27362F8AAAB8009E9A5C /* SafeDriveTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SafeDriveTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		510A27402F8AAAB8009E9A5C /* SafeDriveUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SafeDriveUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		510A27292F8AAAB7009E9A5C /* Safeguard.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Safeguard.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		510A27362F8AAAB8009E9A5C /* SafeguardTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SafeguardTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		510A27402F8AAAB8009E9A5C /* SafeguardUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = SafeguardUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		510A27AE2F8AC98C009E9A5C /* Exceptions for "SafeDrive" folder in "SafeDrive" target */ = {
+		510A27AE2F8AC98C009E9A5C /* Exceptions for "Safeguard" folder in "Safeguard" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
-			target = 510A27282F8AAAB7009E9A5C /* SafeDrive */;
+			target = 510A27282F8AAAB7009E9A5C /* Safeguard */;
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		510A272B2F8AAAB7009E9A5C /* SafeDrive */ = {
+		510A272B2F8AAAB7009E9A5C /* Safeguard */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				510A27AE2F8AC98C009E9A5C /* Exceptions for "SafeDrive" folder in "SafeDrive" target */,
+				510A27AE2F8AC98C009E9A5C /* Exceptions for "Safeguard" folder in "Safeguard" target */,
 			);
-			path = SafeDrive;
+			path = Safeguard;
 			sourceTree = "<group>";
 		};
-		510A27392F8AAAB8009E9A5C /* SafeDriveTests */ = {
+		510A27392F8AAAB8009E9A5C /* SafeguardTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = SafeDriveTests;
+			path = SafeguardTests;
 			sourceTree = "<group>";
 		};
-		510A27432F8AAAB8009E9A5C /* SafeDriveUITests */ = {
+		510A27432F8AAAB8009E9A5C /* SafeguardUITests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			path = SafeDriveUITests;
+			path = SafeguardUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -65,6 +69,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				510A27FB2F8B0A3B009E9A5C /* Auth0 in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -88,9 +93,9 @@
 		510A27202F8AAAB7009E9A5C = {
 			isa = PBXGroup;
 			children = (
-				510A272B2F8AAAB7009E9A5C /* SafeDrive */,
-				510A27392F8AAAB8009E9A5C /* SafeDriveTests */,
-				510A27432F8AAAB8009E9A5C /* SafeDriveUITests */,
+				510A272B2F8AAAB7009E9A5C /* Safeguard */,
+				510A27392F8AAAB8009E9A5C /* SafeguardTests */,
+				510A27432F8AAAB8009E9A5C /* SafeguardUITests */,
 				510A272A2F8AAAB7009E9A5C /* Products */,
 			);
 			sourceTree = "<group>";
@@ -98,9 +103,9 @@
 		510A272A2F8AAAB7009E9A5C /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				510A27292F8AAAB7009E9A5C /* SafeDrive.app */,
-				510A27362F8AAAB8009E9A5C /* SafeDriveTests.xctest */,
-				510A27402F8AAAB8009E9A5C /* SafeDriveUITests.xctest */,
+				510A27292F8AAAB7009E9A5C /* Safeguard.app */,
+				510A27362F8AAAB8009E9A5C /* SafeguardTests.xctest */,
+				510A27402F8AAAB8009E9A5C /* SafeguardUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -108,9 +113,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		510A27282F8AAAB7009E9A5C /* SafeDrive */ = {
+		510A27282F8AAAB7009E9A5C /* Safeguard */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 510A274A2F8AAAB8009E9A5C /* Build configuration list for PBXNativeTarget "SafeDrive" */;
+			buildConfigurationList = 510A274A2F8AAAB8009E9A5C /* Build configuration list for PBXNativeTarget "Safeguard" */;
 			buildPhases = (
 				510A27252F8AAAB7009E9A5C /* Sources */,
 				510A27262F8AAAB7009E9A5C /* Frameworks */,
@@ -121,18 +126,19 @@
 			dependencies = (
 			);
 			fileSystemSynchronizedGroups = (
-				510A272B2F8AAAB7009E9A5C /* SafeDrive */,
+				510A272B2F8AAAB7009E9A5C /* Safeguard */,
 			);
-			name = SafeDrive;
+			name = Safeguard;
 			packageProductDependencies = (
+				510A27FA2F8B0A3B009E9A5C /* Auth0 */,
 			);
-			productName = SafeDrive;
-			productReference = 510A27292F8AAAB7009E9A5C /* SafeDrive.app */;
+			productName = Safeguard;
+			productReference = 510A27292F8AAAB7009E9A5C /* Safeguard.app */;
 			productType = "com.apple.product-type.application";
 		};
-		510A27352F8AAAB8009E9A5C /* SafeDriveTests */ = {
+		510A27352F8AAAB8009E9A5C /* SafeguardTests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 510A274D2F8AAAB8009E9A5C /* Build configuration list for PBXNativeTarget "SafeDriveTests" */;
+			buildConfigurationList = 510A274D2F8AAAB8009E9A5C /* Build configuration list for PBXNativeTarget "SafeguardTests" */;
 			buildPhases = (
 				510A27322F8AAAB8009E9A5C /* Sources */,
 				510A27332F8AAAB8009E9A5C /* Frameworks */,
@@ -144,18 +150,18 @@
 				510A27382F8AAAB8009E9A5C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				510A27392F8AAAB8009E9A5C /* SafeDriveTests */,
+				510A27392F8AAAB8009E9A5C /* SafeguardTests */,
 			);
-			name = SafeDriveTests;
+			name = SafeguardTests;
 			packageProductDependencies = (
 			);
-			productName = SafeDriveTests;
-			productReference = 510A27362F8AAAB8009E9A5C /* SafeDriveTests.xctest */;
+			productName = SafeguardTests;
+			productReference = 510A27362F8AAAB8009E9A5C /* SafeguardTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
-		510A273F2F8AAAB8009E9A5C /* SafeDriveUITests */ = {
+		510A273F2F8AAAB8009E9A5C /* SafeguardUITests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 510A27502F8AAAB8009E9A5C /* Build configuration list for PBXNativeTarget "SafeDriveUITests" */;
+			buildConfigurationList = 510A27502F8AAAB8009E9A5C /* Build configuration list for PBXNativeTarget "SafeguardUITests" */;
 			buildPhases = (
 				510A273C2F8AAAB8009E9A5C /* Sources */,
 				510A273D2F8AAAB8009E9A5C /* Frameworks */,
@@ -167,13 +173,13 @@
 				510A27422F8AAAB8009E9A5C /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
-				510A27432F8AAAB8009E9A5C /* SafeDriveUITests */,
+				510A27432F8AAAB8009E9A5C /* SafeguardUITests */,
 			);
-			name = SafeDriveUITests;
+			name = SafeguardUITests;
 			packageProductDependencies = (
 			);
-			productName = SafeDriveUITests;
-			productReference = 510A27402F8AAAB8009E9A5C /* SafeDriveUITests.xctest */;
+			productName = SafeguardUITests;
+			productReference = 510A27402F8AAAB8009E9A5C /* SafeguardUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 /* End PBXNativeTarget section */
@@ -199,7 +205,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 510A27242F8AAAB7009E9A5C /* Build configuration list for PBXProject "SafeDrive" */;
+			buildConfigurationList = 510A27242F8AAAB7009E9A5C /* Build configuration list for PBXProject "Safeguard" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -208,14 +214,17 @@
 			);
 			mainGroup = 510A27202F8AAAB7009E9A5C;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				510A27F92F8B0A3B009E9A5C /* XCRemoteSwiftPackageReference "Auth0" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = 510A272A2F8AAAB7009E9A5C /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				510A27282F8AAAB7009E9A5C /* SafeDrive */,
-				510A27352F8AAAB8009E9A5C /* SafeDriveTests */,
-				510A273F2F8AAAB8009E9A5C /* SafeDriveUITests */,
+				510A27282F8AAAB7009E9A5C /* Safeguard */,
+				510A27352F8AAAB8009E9A5C /* SafeguardTests */,
+				510A273F2F8AAAB8009E9A5C /* SafeguardUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -271,12 +280,12 @@
 /* Begin PBXTargetDependency section */
 		510A27382F8AAAB8009E9A5C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 510A27282F8AAAB7009E9A5C /* SafeDrive */;
+			target = 510A27282F8AAAB7009E9A5C /* Safeguard */;
 			targetProxy = 510A27372F8AAAB8009E9A5C /* PBXContainerItemProxy */;
 		};
 		510A27422F8AAAB8009E9A5C /* PBXTargetDependency */ = {
 			isa = PBXTargetDependency;
-			target = 510A27282F8AAAB7009E9A5C /* SafeDrive */;
+			target = 510A27282F8AAAB7009E9A5C /* Safeguard */;
 			targetProxy = 510A27412F8AAAB8009E9A5C /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
@@ -408,7 +417,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = SafeDrive/Info.plist;
+				INFOPLIST_FILE = Safeguard/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -424,7 +433,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.bitcamp2026.SafeDrive;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bitcamp2026.Safeguard;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
@@ -452,7 +461,7 @@
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = SafeDrive/Info.plist;
+				INFOPLIST_FILE = Safeguard/Info.plist;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -468,7 +477,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.bitcamp2026.SafeDrive;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bitcamp2026.Safeguard;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				REGISTER_APP_GROUPS = YES;
 				SDKROOT = auto;
@@ -494,7 +503,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MACOSX_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.bitcamp2026.SafeDriveTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bitcamp2026.SafeguardTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -504,7 +513,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SafeDrive.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SafeDrive";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Safeguard.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Safeguard";
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Debug;
@@ -519,7 +528,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MACOSX_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.bitcamp2026.SafeDriveTests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bitcamp2026.SafeguardTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -529,7 +538,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SafeDrive.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/SafeDrive";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Safeguard.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Safeguard";
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Release;
@@ -543,7 +552,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MACOSX_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.bitcamp2026.SafeDriveUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bitcamp2026.SafeguardUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -553,7 +562,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_TARGET_NAME = SafeDrive;
+				TEST_TARGET_NAME = Safeguard;
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Debug;
@@ -567,7 +576,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
 				MACOSX_DEPLOYMENT_TARGET = 26.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.bitcamp2026.SafeDriveUITests;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bitcamp2026.SafeguardUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = auto;
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
@@ -577,7 +586,7 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2,7";
-				TEST_TARGET_NAME = SafeDrive;
+				TEST_TARGET_NAME = Safeguard;
 				XROS_DEPLOYMENT_TARGET = 26.4;
 			};
 			name = Release;
@@ -585,7 +594,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		510A27242F8AAAB7009E9A5C /* Build configuration list for PBXProject "SafeDrive" */ = {
+		510A27242F8AAAB7009E9A5C /* Build configuration list for PBXProject "Safeguard" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				510A27482F8AAAB8009E9A5C /* Debug */,
@@ -594,7 +603,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		510A274A2F8AAAB8009E9A5C /* Build configuration list for PBXNativeTarget "SafeDrive" */ = {
+		510A274A2F8AAAB8009E9A5C /* Build configuration list for PBXNativeTarget "Safeguard" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				510A274B2F8AAAB8009E9A5C /* Debug */,
@@ -603,7 +612,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		510A274D2F8AAAB8009E9A5C /* Build configuration list for PBXNativeTarget "SafeDriveTests" */ = {
+		510A274D2F8AAAB8009E9A5C /* Build configuration list for PBXNativeTarget "SafeguardTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				510A274E2F8AAAB8009E9A5C /* Debug */,
@@ -612,7 +621,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		510A27502F8AAAB8009E9A5C /* Build configuration list for PBXNativeTarget "SafeDriveUITests" */ = {
+		510A27502F8AAAB8009E9A5C /* Build configuration list for PBXNativeTarget "SafeguardUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				510A27512F8AAAB8009E9A5C /* Debug */,
@@ -622,6 +631,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		510A27F92F8B0A3B009E9A5C /* XCRemoteSwiftPackageReference "Auth0" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/auth0/Auth0.swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.18.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		510A27FA2F8B0A3B009E9A5C /* Auth0 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 510A27F92F8B0A3B009E9A5C /* XCRemoteSwiftPackageReference "Auth0" */;
+			productName = Auth0;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 510A27212F8AAAB7009E9A5C /* Project object */;
 }

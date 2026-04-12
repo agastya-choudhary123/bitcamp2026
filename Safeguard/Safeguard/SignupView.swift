@@ -32,7 +32,7 @@ struct SignupView: View {
                             .font(.system(size: 28, weight: .bold))
                             .foregroundColor(.sdForeground)
                         
-                        Text("Join SafeDrive for a safer journey.")
+                        Text("Join Safeguard for a safer journey.")
                             .font(.subheadline)
                             .foregroundColor(.sdMuted)
                     }

@@ -2,10 +2,13 @@ import Foundation
 
 class NetworkManager {
     static let shared = NetworkManager()
-    
+
     // Extracted from Macbook Ethernet/Wifi for iOS physical device connection!
     let baseURL = "http://MacBook-Air-886.local:3001"
-    
+
+    /// Set this after Auth0 login; automatically attached to every request.
+    var accessToken: String?
+
     private init() {}
     
     // MARK: - Models
@@ -93,6 +96,9 @@ class NetworkManager {
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        if let token = accessToken {
+            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        }
         
         if let body = body {
             request.httpBody = try? JSONSerialization.data(withJSONObject: body)
