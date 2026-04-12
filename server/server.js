@@ -252,22 +252,28 @@ app.post("/state", requireAuth, async (req, res) => {
     }
 
     if (emergencyTriggered) {
-        const user = await User.findOne({ username: driverName })
+        const authSub = req.auth?.payload?.sub
+        const user = await User.findOne({ username: authSub || driverName })
 
         console.log("🚨 EMERGENCY TRIGGERED —", emergencyReason)
         console.log(`Driver: ${driverName} | Location: ${lat}, ${lng}`)
 
-        const contacts = user?.emergencyContacts || []
-        if (contacts.length === 0) {
-            console.log(`No emergency contacts set for ${driverName}`)
+        const callWorthy = emergencyReason?.includes("INTOXICATED") || emergencyReason?.includes("MEDICAL")
+        if (callWorthy) {
+            const contacts = user?.emergencyContacts || []
+            if (contacts.length === 0) {
+                console.log(`No emergency contacts set for ${driverName}`)
+            } else {
+                await Promise.all(contacts.map(async (contact) => {
+                    try {
+                        await initiateEmergencyCall({ contact, driverName, lat, lng, emergencyReason })
+                    } catch (e) {
+                        console.error(`Emergency call failed for ${contact.name}:`, e.message)
+                    }
+                }))
+            }
         } else {
-            await Promise.all(contacts.map(async (contact) => {
-                try {
-                    await initiateEmergencyCall({ contact, driverName, lat, lng, emergencyReason })
-                } catch (e) {
-                    console.error(`Emergency call failed for ${contact.name}:`, e.message)
-                }
-            }))
+            console.log(`⚠️ Emergency logged but no call triggered for: ${emergencyReason}`)
         }
     }
 

@@ -14,16 +14,17 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function DashboardPage() {
-  const { isAuthenticated, isLoading, logout } = useAuth0();
+  const { isAuthenticated, isLoading, logout, user } = useAuth0();
   const [history, setHistory] = useState<number[]>(new Array(40).fill(0.35));
-  const [userName, setUserName] = useState("Driver");
-  
+
+  const userName = user?.name ?? user?.nickname ?? localStorage.getItem("driverName") ?? "Driver";
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const navigate = Route.useNavigate();
 
   const { metrics, behaviorStates, severity, hazard } = useSafeguardAI(videoRef, canvasRef);
-  const geminiRisk = useGeminiRisk(metrics, behaviorStates, severity);
+  const geminiRisk = useGeminiRisk(metrics, behaviorStates, severity, userName);
 
   useEffect(() => {
     if (metrics) setHistory((h) => [...h.slice(1), metrics.ear || 0]);
@@ -31,8 +32,6 @@ function DashboardPage() {
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) navigate({ to: "/" });
-    const storedName = localStorage.getItem("driverName");
-    if (storedName) setUserName(storedName);
   }, [isAuthenticated, isLoading, navigate]);
 
   const handleLogout = () => {

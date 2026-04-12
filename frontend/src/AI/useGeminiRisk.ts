@@ -29,7 +29,8 @@ Rules: intoxicated→+40,medical/microsleep→+45,drowsy→+20. PERCLOS>30%→cr
 export function useGeminiRisk(
   metrics: any,
   behaviorStates: string[],
-  severity: number
+  severity: number,
+  driverName?: string
 ): GeminiRiskResult {
   const [result, setResult] = useState<GeminiRiskResult>({
     score: 0, label: "Low", summary: "", recommendations: [],
@@ -66,7 +67,8 @@ export function useGeminiRisk(
         body: JSON.stringify({
           metrics: metricsRef.current,
           behaviorStates: statesRef.current,
-          severity: severityRef.current
+          severity: severityRef.current,
+          driverName: driverName ?? "anonymous"
         })
       });
 
