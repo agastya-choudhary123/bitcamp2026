@@ -84,6 +84,7 @@ struct DashboardView: View {
     @ObservedObject var backgroundProcessor: BackgroundCVProcessor
     @StateObject var cameraManager = CameraManager()
     @StateObject var monitor = DrowsinessMonitor()
+    @StateObject var locationManager = LocationManager()
     @Environment(\.scenePhase) var scenePhase
 
     @State private var isDriving: Bool = false
@@ -458,7 +459,7 @@ struct DashboardView: View {
             "headRoll": m["fRoll"] ?? 0,
             "entropy": m["fEntropy"] ?? 0,
             "microTremor": m["fJerk"] ?? 0,
-            "lat": 0, "lng": 0
+            "lat": locationManager.latitude, "lng": locationManager.longitude
         ]
         NetworkManager.shared.request(endpoint: "/state", method: "POST", body: body) { (_: Result<NetworkManager.StateResponse, Error>) in }
     }
