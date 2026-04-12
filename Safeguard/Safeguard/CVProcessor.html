@@ -71,8 +71,7 @@
                     if (state === "alert") continue;
                     const isCritical = this.criticalStates.includes(state);
                     const isDetected = currentFrameSet.has(state);
-                    let ON_DELAY  = isCritical ? 3000 : 850;
-                    if (state === "intoxicated") ON_DELAY = 12500; // 12.5s of continuous impaired telemetry
+                    let ON_DELAY  = isCritical ? 15000 : 850;
                     const OFF_DELAY = isCritical ? 4000 : 1500;
                     if (!this.activeStates.has(state)) {
                         if (isDetected) {
