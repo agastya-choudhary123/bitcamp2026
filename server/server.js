@@ -1,8 +1,11 @@
 require("dotenv").config()
 const express = require("express")
+const expressWs = require("express-ws")
 const cors = require("cors")
 const mongoose = require("mongoose")
 const { auth } = require("express-oauth2-jwt-bearer")
+const { ElevenLabsClient } = require("@elevenlabs/elevenlabs-js")
+const twilio = require("twilio")
 
 const requireAuth = auth({
     audience: process.env.AUTH0_AUDIENCE,
@@ -18,6 +21,11 @@ cloudinary.config({
 
 
 const app = express()
+expressWs(app)
+
+const elevenlabs = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY })
+const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+
 app.use(cors())
 app.use(express.json({ limit: '50mb' }))
 app.use(express.urlencoded({ limit: '50mb', extended: true }))
@@ -83,8 +91,26 @@ const reportSchema = new mongoose.Schema({
 })
 const Report = mongoose.model("Report", reportSchema)
 
+const { Readable } = require("stream")
 const { GoogleGenerativeAI } = require("@google/generative-ai")
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+
+// ── ElevenLabs / Twilio voice call ─────────────────────────────────────────
+
+async function initiateEmergencyCall({ contact, driverName, lat, lng }) {
+    const alert = `This is an automated emergency alert from SafeGuard. ${driverName} needs immediate help. Driver is potentially distracted, drowsy, or under the influence. Their last known location is latitude ${lat}, longitude ${lng}. Please check on them immediately or call 9 1 1.`
+    const message = `${alert} ${alert}`
+
+    const twiml = `<Response><Say voice="alice">${message}</Say></Response>`
+    const call = await twilioClient.calls.create({
+        to: contact.phone,
+        from: process.env.TWILIO_PHONE_NUMBER,
+        twiml
+    })
+    console.log(`📞 Emergency call initiated to ${contact.name} (${contact.phone}) — SID: ${call.sid}`)
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 
 async function generateEmergencySMS({ driverName, emergencyReason, lat, lng, cvState, contact }) {
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
@@ -201,13 +227,13 @@ app.post("/report/generate", requireAuth, async (req, res) => {
         const prompt = `Analyze these driving logs and generate a safety report for ${driverName}: ${JSON.stringify(summary)}. Provide actionable safety feedback, keep it very concise.`;
         const result = await model.generateContent(prompt);
         const reportString = result.response.text();
-        
+
         const newReport = new Report({
             driverName: driverName,
             reportText: reportString
         });
         await newReport.save();
-        
+
         res.json({ success: true, report: newReport });
     } catch (e) {
         res.status(500).json({ error: e.message });
@@ -216,15 +242,15 @@ app.post("/report/generate", requireAuth, async (req, res) => {
 
 function checkEmergency(state) {
     const states = Array.isArray(state.behaviorStates) ? state.behaviorStates : [state.behaviorState || "alert"];
-    const crash   = state.external?.crash?.state;
-    const hazard  = state.external?.forwardHazard?.state;
+    const crash = state.external?.crash?.state;
+    const hazard = state.external?.forwardHazard?.state;
 
-    if (crash === "crash_detected")                return "CRASH DETECTED";
-    if (crash === "crash_imminent")                return "CRASH IMMINENT";
-    if (states.includes("microsleep"))             return "MICROSLEEP DETECTED";
-    if (states.includes("medical"))                return "MEDICAL EMERGENCY — CALL 911";
-    if (states.includes("intoxicated"))            return "DRIVER POSSIBLY INTOXICATED";
-    if (hazard === "immediate_forward_risk")       return "FORWARD COLLISION RISK";
+    if (crash === "crash_detected") return "CRASH DETECTED";
+    if (crash === "crash_imminent") return "CRASH IMMINENT";
+    if (states.includes("microsleep")) return "MICROSLEEP DETECTED";
+    if (states.includes("medical")) return "MEDICAL EMERGENCY — CALL 911";
+    if (states.includes("intoxicated")) return "DRIVER POSSIBLY INTOXICATED";
+    if (hazard === "immediate_forward_risk") return "FORWARD COLLISION RISK";
     return null;
 }
 
@@ -237,7 +263,7 @@ app.post("/state", requireAuth, async (req, res) => {
 
     const emergencyReason = checkEmergency(cvState)
     const emergencyTriggered = !!emergencyReason
-    
+
     // Diagnostic Log
     console.log(`📸 DATA FROM CAMERA: ${driverName} (EAR: ${cvState.ear?.toFixed(3) || "N/A"})`);
 
@@ -259,7 +285,7 @@ app.post("/state", requireAuth, async (req, res) => {
                 }
             )
             console.log("Video clip saved:", result.secure_url)
-            
+
             // SAVE TO DATABASE
             const newReplay = new Replay({
                 driverName: driverName,
@@ -278,11 +304,11 @@ app.post("/state", requireAuth, async (req, res) => {
     if (emergencyTriggered) {
         const user = await User.findOne({ username: driverName })
         const mapsLink = `https://maps.google.com/?q=${lat},${lng}`
-        
+
         console.log("🚨 EMERGENCY TRIGGERED —", emergencyReason)
         console.log(`Driver: ${driverName}`)
         console.log(`Location: ${mapsLink}`)
-        
+
         const contacts = user?.emergencyContacts || []
         if (contacts.length === 0) {
             console.log(`ALERT SENT TO: Emergency Services (NO CONTACTS SET)`)
@@ -291,7 +317,7 @@ app.post("/state", requireAuth, async (req, res) => {
             await Promise.all(contacts.map(async (contact) => {
                 const contactPhone = contact.phone || "NO PHONE"
                 const contactName = contact.name || "Emergency Contact"
-                
+
                 try {
                     const sms = await generateEmergencySMS({ driverName, emergencyReason, lat, lng, cvState, contact })
                     console.log(`AI SMS BROADCAST TO ${contactName} (${contactPhone}): ${sms}`)
@@ -301,6 +327,12 @@ app.post("/state", requireAuth, async (req, res) => {
                     const fallback = `EMERGENCY: ${driverName} needs help. ${emergencyReason}. Location: ${mapsLink}`
                     console.log(`FALLBACK SMS TO ${contactName}: ${fallback}`)
                     emergencySMSLog.push({ name: contactName, phone: contactPhone, sms: fallback })
+                }
+
+                try {
+                    await initiateEmergencyCall({ contact, driverName, lat, lng })
+                } catch (e) {
+                    console.error(`Emergency call failed for ${contactName}:`, e.message)
                 }
             }))
         }
@@ -348,7 +380,7 @@ app.get("/status/:driverName", requireAuth, async (req, res) => {
     try {
         const lastLoc = await DriverState.findOne({ driverName: req.params.driverName })
             .sort({ timestamp: -1 });
-            
+
         if (!lastLoc) {
             console.log(`📱 POLL FROM IPHONE: ${req.params.driverName} -> ❌ NO DATA FOUND`);
             return res.json({});
@@ -407,6 +439,21 @@ Respond ONLY with valid JSON. No markdown, no explanation.`
         res.json(parsed)
     } catch (e) {
         console.error("Risk scoring error:", e.message)
+        res.status(500).json({ error: e.message })
+    }
+})
+
+app.get("/test-call", async (req, res) => {
+    try {
+        await initiateEmergencyCall({
+            contact: { name: "Test", phone: "+12242928589" },
+            driverName: "Agastya",
+            emergencyReason: "MICROSLEEP DETECTED",
+            lat: 38.9072,
+            lng: -77.0369
+        })
+        res.json({ success: true })
+    } catch (e) {
         res.status(500).json({ error: e.message })
     }
 })
