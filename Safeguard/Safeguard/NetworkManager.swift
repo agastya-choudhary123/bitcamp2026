@@ -4,7 +4,7 @@ class NetworkManager {
     static let shared = NetworkManager()
 
     // Extracted from Macbook Ethernet/Wifi for iOS physical device connection!
-    let baseURL = "http://172.23.26.41:3001"
+    let baseURL = "http://172.23.25.225:3001"
 
     /// Set this after Auth0 login; persists in UserDefaults for cross-session longevity.
     var accessToken: String? {
