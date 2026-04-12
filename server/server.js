@@ -183,10 +183,15 @@ app.post("/user/:username/contact", requireAuth, async (req, res) => {
         console.log(`Username: ${req.params.username}`);
         console.log(`Body: ${JSON.stringify(req.body, null, 2)}`);
 
+        // iOS sends { emergencyContacts: [...] }, web sends { name, phone, relationship }
+        const contacts = Array.isArray(req.body.emergencyContacts)
+            ? req.body.emergencyContacts
+            : [req.body];
+
         const user = await User.findOneAndUpdate(
             { username: req.params.username },
-            { emergencyContacts: [req.body] },
-            { new: true }
+            { emergencyContacts: contacts },
+            { new: true, upsert: false }
         );
 
         if (!user) {
