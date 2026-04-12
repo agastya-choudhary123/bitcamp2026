@@ -42,6 +42,11 @@ class CameraManager: NSObject, ObservableObject {
                 ]
                 let input = AVAssetWriterInput(mediaType: .video, outputSettings: settings)
                 input.expectsMediaDataInRealTime = true
+                // Frames arrive landscape (640×480) from the front sensor.
+                // Rotate 90° clockwise so the clip plays upright in portrait.
+                // Matrix for 90° CW with translation so origin stays in frame:
+                //   [a=0, b=-1, c=1, d=0, tx=0, ty=sourceWidth(640)]
+                input.transform = CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: 0, ty: 640)
                 if writer.canAdd(input) { writer.add(input) }
                 writer.startWriting()
                 self.assetWriter = writer
