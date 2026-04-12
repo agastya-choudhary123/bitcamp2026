@@ -51,8 +51,20 @@ class NetworkManager {
         let sessionStart: String?
         let sessionEnd: String?
         let videoUrl: String?
-        
+        let states: [String]?
+
         var id: String { _id }
+    }
+
+    struct UploadResponse: Codable {
+        let success: Bool
+        let videoUrl: String?
+    }
+
+    struct StateResponse: Codable {
+        let success: Bool?
+        let emergencyTriggered: Bool?
+        let emergencyReason: String?
     }
     
     struct StatusResponse: Codable {

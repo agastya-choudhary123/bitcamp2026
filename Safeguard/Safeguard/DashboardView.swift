@@ -89,9 +89,15 @@ struct DashboardView: View {
     @State private var isDriving: Bool = false
     @State private var showProfileMenu: Bool = false
     @AppStorage("debugModeEnabled") private var debugModeEnabled: Bool = false
-    
+
     @AppStorage("activeUsername") private var activeUsername: String = ""
     @AppStorage("driverName")    private var driverName: String = ""
+
+    // Clipping pipeline
+    @State private var isClipping = false
+    @State private var clipStopTimer: Timer? = nil
+    @State private var stateSyncTimer: Timer? = nil
+    private let maxClipDuration: TimeInterval = 20
 
     var profileInitial: String {
         driverName.isEmpty ? (activeUsername.first.map(String.init) ?? "?") : String(driverName.prefix(1)).uppercased()
@@ -143,6 +149,14 @@ struct DashboardView: View {
         }
         .onAppear {
             cameraManager.cvProcessor = backgroundProcessor
+        }
+        .onChange(of: backgroundProcessor.driverSeverity) { _, newSeverity in
+            guard isDriving else { return }
+            if newSeverity > 0 && !isClipping {
+                startClip()
+            } else if newSeverity == 0 && isClipping {
+                stopClipAndUpload()
+            }
         }
     }
 
@@ -312,12 +326,11 @@ struct DashboardView: View {
                 CameraViewWrapper(previewLayer: cameraManager.frontPreviewLayer)
                     .frame(height: 220)
                     .background(Color.black)
-                
+
                 HStack(spacing: 8) {
                     Circle()
                         .fill(backgroundProcessor.isReady ? Color.sdGreen : Color.sdRed)
                         .frame(width: 8, height: 8)
-                    
                     Text(backgroundProcessor.isReady ? "LIVE AI VISION" : "INITIALIZING AI...")
                 }
                 .font(.system(size: 10, weight: .black))
@@ -325,6 +338,21 @@ struct DashboardView: View {
                 .background(backgroundProcessor.driverSeverity >= 3 ? Color.sdRed : Color.sdPrimary.opacity(0.9))
                 .foregroundColor(.white)
                 .padding(8)
+
+                // REC badge
+                if isClipping {
+                    HStack(spacing: 5) {
+                        Circle().fill(Color.red).frame(width: 7, height: 7)
+                            .opacity(0.9)
+                        Text("REC").font(.system(size: 9, weight: .black))
+                    }
+                    .padding(.horizontal, 8).padding(.vertical, 5)
+                    .background(Color.black.opacity(0.7))
+                    .foregroundColor(.white)
+                    .clipShape(Capsule())
+                    .padding(8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                }
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 18))
@@ -389,17 +417,98 @@ struct DashboardView: View {
     func startDrive() {
         isDriving = true
         cameraManager.checkPermissionsAndStart()
-        // Calibration happens silently in the background
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             backgroundProcessor.startCalibration()
         }
+        startStateSync()
     }
 
     func stopDrive() {
+        if isClipping { stopClipAndUpload() }
         isDriving = false
         cameraManager.stopSession()
         monitor.stopPolling()
         backgroundProcessor.resetMetrics()
+        stopStateSync()
+    }
+
+    // MARK: - State Sync
+    func startStateSync() {
+        stateSyncTimer?.invalidate()
+        stateSyncTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
+            postCurrentState()
+        }
+    }
+
+    func stopStateSync() {
+        stateSyncTimer?.invalidate()
+        stateSyncTimer = nil
+    }
+
+    func postCurrentState() {
+        let m = backgroundProcessor.currentMetrics
+        let body: [String: Any] = [
+            "driverName": activeUsername,
+            "behaviorStates": backgroundProcessor.driverStates,
+            "behaviorSeverity": backgroundProcessor.driverSeverity,
+            "ear": m["fEAR"] ?? 0,
+            "perclos": m["fPERCLOS"] ?? 0,
+            "headPitch": m["fPitch"] ?? 0,
+            "headYaw": m["fYaw"] ?? 0,
+            "headRoll": m["fRoll"] ?? 0,
+            "entropy": m["fEntropy"] ?? 0,
+            "microTremor": m["fJerk"] ?? 0,
+            "lat": 0, "lng": 0
+        ]
+        NetworkManager.shared.request(endpoint: "/state", method: "POST", body: body) { (_: Result<NetworkManager.StateResponse, Error>) in }
+    }
+
+    // MARK: - Clip Pipeline
+    func startClip() {
+        guard !isClipping else { return }
+        isClipping = true
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString + ".mp4")
+        cameraManager.startRecording(to: url)
+        clipStopTimer?.invalidate()
+        clipStopTimer = Timer.scheduledTimer(withTimeInterval: maxClipDuration, repeats: false) { _ in
+            stopClipAndUpload()
+        }
+        print("[Clip] Triggered by states: \(backgroundProcessor.driverStates)")
+    }
+
+    func stopClipAndUpload() {
+        clipStopTimer?.invalidate()
+        guard isClipping else { return }
+        isClipping = false
+        let capturedStates = backgroundProcessor.driverStates
+        cameraManager.stopRecording { url in
+            guard let url = url else { return }
+            uploadClip(url: url, states: capturedStates)
+        }
+    }
+
+    func uploadClip(url: URL, states: [String]) {
+        DispatchQueue.global(qos: .utility).async {
+            guard let data = try? Data(contentsOf: url) else {
+                print("[Clip] Failed to read clip file")
+                return
+            }
+            let base64 = "data:video/mp4;base64," + data.base64EncodedString()
+            let body: [String: Any] = [
+                "videoBase64": base64,
+                "driverName": self.activeUsername,
+                "sessionStart": ISO8601DateFormatter().string(from: Date()),
+                "states": states
+            ]
+            NetworkManager.shared.request(endpoint: "/upload-video", method: "POST", body: body) { (result: Result<NetworkManager.UploadResponse, Error>) in
+                switch result {
+                case .success(let r): print("[Clip] ✅ Uploaded: \(r.videoUrl ?? "no url")")
+                case .failure(let e): print("[Clip] ❌ Upload failed: \(e.localizedDescription)")
+                }
+            }
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 
     func logout() {
