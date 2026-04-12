@@ -28,7 +28,7 @@ function LoginPage() {
             Authorization: `Bearer ${token}`,
             "x-safeguard-dev-bypass": "true"
           },
-          body: JSON.stringify({ name: user.name ?? user.nickname ?? "Driver" }),
+          body: JSON.stringify({ name: user.name ?? user.nickname ?? "Driver", sub: user.sub }),
         });
         const data = await resp.json();
         localStorage.setItem("driverName", data.user?.name ?? user.name ?? "Driver");
