@@ -298,9 +298,9 @@ struct DashboardView: View {
     // MARK: - Camera Card
     var cameraCard: some View {
         VStack(spacing: 0) {
-            // MAIN CAMERA: FACE
+            // MAIN CAMERA FEED
             ZStack(alignment: .topLeading) {
-                CameraViewWrapper(previewLayer: cameraManager.frontPreviewLayer)
+                CameraViewWrapper(previewLayer: cameraManager.activePreviewLayer)
                     .frame(height: 380)
                     .background(Color.black)
                     .clipShape(RoundedRectangle(cornerRadius: 18))
@@ -309,7 +309,7 @@ struct DashboardView: View {
                     Circle()
                         .fill(backgroundProcessor.isReady ? Color.sdGreen : Color.sdRed)
                         .frame(width: 8, height: 8)
-                    Text(backgroundProcessor.isReady ? "LIVE AI VISION" : "INITIALIZING AI...")
+                    Text(backgroundProcessor.isReady ? "LIVE BACK CAMERA AI" : "INITIALIZING AI...")
                 }
                 .font(.system(size: 10, weight: .black))
                 .padding(8)
