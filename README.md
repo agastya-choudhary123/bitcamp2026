@@ -1,55 +1,50 @@
-# 🛡️ Safeguard: Intelligent Driver Protection
+# 🛡️ Safeguard: Real-Time Driver Intelligence
 
-**Safeguard** is an advanced, real-time driver safety system designed to prevent accidents before they happen. By combining high-fidelity Computer Vision (CV) with a hybrid edge architecture, Safeguard monitors behavioral patterns to detect drowsiness, distraction, and medical emergencies.
+**Safeguard** is a high-performance safety system that protects drivers through real-time behavioral monitoring. By combining native iOS camera processing with a distributed emergency backend, Safeguard detects dangerous states—like microsleep, intoxication, and medical emergencies—and automatically coordinates a life-saving response.
 
 Built for the future of road safety at **BitCamp 2026**.
 
 ---
 
-## 🚀 Key Features
+## 🚀 Core Features
 
-- **👁️ Behavioral Intelligence** — Tracks eye closure (EAR/PERCLOS), blink variance, and continuous yawning to predict microsleep risks.
-- **📱 Distraction Monitoring** — Uses head-pose estimation and gaze tracking to detect phone usage and prolonged eyes-off-road events.
-- **🚑 Medical Emergency Trigger** — Automatically detects unresponsive states (catatonia) or sudden high-frequency movements (seizure-like telemetry).
-- **📹 Dual-Camera Awareness** — Simultaneously displays a front-facing Face Monitor and a rear-facing Road Monitor for total situational awareness.
-- **🚨 15-Second Safety Protocol** — A rigorous validation window that ensures emergency alerts are only triggered for genuine, sustained dangers.
-- **📲 Live SOS Integration** — Automatically broadcasts personalized SMS alerts with GPS coordinates to emergency contacts via Google Gemini AI.
+- **👁️ Edge CV Engine** — Tracks 468 facial landmarks at 15 FPS directly on the device. Monitors eye closure (EAR/PERCLOS), blink variance, and progressive fatigue.
+- **📱 Distraction Detection** — Real-time head-pose estimation and gaze tracking to identify phone use and "eyes-off-road" events.
+- **🚑 Adaptive Medical Trigger** — Detects unresponsive states (catatonia) or high-frequency tremors to identify potential seizures or medical distress.
+- **📹 Dual-Camera Awareness** — Leverages iPhone Multi-Cam sessions to provide simultaneous situational awareness of both the driver and the road.
+- **🚨 15-Second Safety Protocol** — A rigorous validation window (hysteresis) that ensures emergency alerts are only triggered for sustained, genuine dangers.
+- **📞 Automated SOS Pipeline** — Instantly broadcasts Voice and SMS alerts to emergency contacts via Twilio, including live GPS coordinates.
 
 ---
 
 ## 🛠️ How It Works
 
-Safeguard uses a **Hybrid Intelligent Architecture** to keep processing fast and reliable:
+Safeguard is built on a **Hybrid Intelligent Architecture** to ensure reliability even in low-bandwidth environments:
 
-### 1. The Edge AI Engine
-A high-performance JS-based vision engine is embedded directly into the native iOS app. It maps **468 facial landmarks** at 15 FPS. This "edge" processing means your data never leaves the device for basic monitoring.
+### 1. High-Fidelity Edge Monitoring
+The iOS application embeds a native-bridged JavaScript vision engine. By processing frames locally on the iPhone, Safeguard maintains ultra-low latency while preserving user privacy. It extracts 25+ unique biometric metrics every second.
 
 ### 2. The 15-Second Safeguard Rule
-To prevent "false alarms," Safeguard follows a strict 15-second protocol:
-- **Neural Warm-up**: For the first 15 seconds of a session, the AI "learns" your baseline and uses ultra-strict filters.
-- **Sustained Detection**: Critical states (like Intoxication or Medical Emergency) must be detected continuously for 15 seconds before the system escalates to an emergency broadcast.
+To eliminate false positives, the system utilizes a multi-layered stabilization protocol:
+- **Neural Warm-up**: In the first 15 seconds of a session, the system establishes a behavioral baseline and applies strict noise filters.
+- **Confirmation Window**: Critical states (Intoxication, Medical Emergency) must be continuously detected for 15 seconds before the system initiates an emergency broadcast.
 
-### 3. Smart Evidence Clipping
-When a high-severity state is detected, Safeguard automatically records a **20-second video clip**. This clip is synced to the cloud and linked in the emergency SMS, giving first responders instant context on the situation.
+### 3. Automated Incident Clipping
+When a safety threshold is breached, the system records a **20-second video clip** of the event. This evidence is synced to the backend and provided to emergency contacts to give them immediate visual context.
 
 ---
 
 ## 📂 Project Structure
 
-- **`/Safeguard`**: The primary Native iOS app (Swift/SwiftUI).
-- **`/server`**: The distributed backend (Node.js, Express, MongoDB) that handles SOS alerts and video storage.
-- **`/frontend`**: A premium web dashboard for reviewing session replays and safety reports.
-- **`/mobile-expo`**: A cross-platform mobile client for managing emergency contacts.
+- **`/Safeguard`**: Primary Native iOS App (Swift/SwiftUI).
+- **`/server`**: Backend Intelligence (Node.js, Express, MongoDB, Twilio).
+- **`/frontend`**: Safety Dashboard for reviewing session history and telemetry replays.
+- **`/mobile-expo`**: Cross-platform configuration client for emergency contacts.
 
 ---
 
-## 🚥 Getting Started
+## 🚥 Installation & Setup
 
-### Prerequisites
-- **iOS Developers**: Xcode 15+ is required to build the native app.
-- **Backend Developers**: Node.js v18+, a MongoDB URI, and a Google Gemini API Key.
-
-### Fast Track
 1. **Back End**:
    ```bash
    cd server && npm install
@@ -57,25 +52,14 @@ When a high-severity state is detected, Safeguard automatically records a **20-s
    ```
 2. **iOS App**:
    - Open `Safeguard/Safeguard.xcodeproj` in Xcode.
-   - Run on an iPhone (physical device required for Multi-Cam features).
+   - Run on a physical iPhone (to support multi-camera and high-Hz processing).
 
 ---
 
-## 📝 API At A Glance
-
-| Endpoint | Purpose |
-| :--- | :--- |
-| `POST /state` | Syncs real-time safety telemetry |
-| `POST /upload-video` | Stores anomaly clips for review |
-| `GET /status/:user` | Live feed for the web dashboard |
-| `POST /report/generate` | Creates an AI-powered safety summary |
-
----
-
-## 🔴 The Emergency Protocol
+## 🔔 The SOS Protocol
 
 When Safeguard determines a **True Emergency** (15s threshold met):
-1. **Context Fetching**: The server pulls your specific emergency contact list.
-2. **AI Generation**: Google Gemini drafts a personalized SMS (e.g., *"Medical emergency detected for Agastya. Speed: 65mph. View Location: [Link]"*).
-3. **Broadcast**: The message is sent immediately to all contacts.
-4. **Link Sync**: A link to the incident video is provided for immediate review.
+1. **Target Identification**: The server identifies the driver and their designated emergency contacts.
+2. **Alert Dispatch**: A high-priority Twilio broadcast is initiated, sending a detailed SMS and initiating an automated voice call.
+3. **Data Payload**: Alerts include the driver's name, the specific reason for the emergency, and a direct Google Maps link to their GPS coordinates.
+4. **Video Handover**: A link to the recorded incident clip is logged for review by family or first responders.
