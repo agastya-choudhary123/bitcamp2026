@@ -198,7 +198,6 @@ function checkEmergency(state) {
 
     if (crash === "crash_detected") return "CRASH DETECTED";
     if (crash === "crash_imminent") return "CRASH IMMINENT";
-    if (states.includes("microsleep")) return "MICROSLEEP DETECTED";
     if (states.includes("medical")) return "MEDICAL EMERGENCY — CALL 911";
     if (states.includes("intoxicated")) return "DRIVER POSSIBLY INTOXICATED";
     if (hazard === "immediate_forward_risk") return "FORWARD COLLISION RISK";
