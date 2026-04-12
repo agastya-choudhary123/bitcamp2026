@@ -1,6 +1,10 @@
 import WebKit
 import Combine
 
+extension Notification.Name {
+    static let proximityAlertTriggered = Notification.Name("proximityAlertTriggered")
+}
+
 class BackgroundCVProcessor: NSObject, ObservableObject, WKScriptMessageHandler, WKNavigationDelegate {
     @Published var lastEAR: Double = 0.3
     @Published var lastPitch: Double = 0
@@ -114,6 +118,17 @@ class BackgroundCVProcessor: NSObject, ObservableObject, WKScriptMessageHandler,
                     return
                 }
                 
+                if type == "proximity_alert" {
+                    if let score = data["hazard"] as? Int { self.hazardScore = score }
+                    NotificationCenter.default.post(name: .proximityAlertTriggered, object: nil)
+                    return
+                }
+
+                if type == "hazard_score" {
+                    if let score = data["hazard"] as? Int { self.hazardScore = score }
+                    return
+                }
+
                 if type == "ai_update" {
                     // 1:1 Mirror of Web Logic Output
                     if let m = data["metrics"] as? [String: Double] {

@@ -159,6 +159,16 @@ struct DashboardView: View {
                 stopClipAndUpload()
             }
         }
+        .onChange(of: backgroundProcessor.driverStates) { _, newStates in
+            guard isDriving else { return }
+            if newStates.contains("microsleep") {
+                AlertSoundManager.shared.playMicrosleepAlarm()
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .proximityAlertTriggered)) { _ in
+            guard isDriving else { return }
+            AlertSoundManager.shared.playProximityWarning()
+        }
     }
 
     // MARK: - Top Bar
