@@ -156,7 +156,7 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
 
         let user = await User.findOne({ username: sub })
         if (!user) {
-            user = new User({ name: name || sub, username: sub, password: "" })
+            user = new User({ name: name || sub, username: sub, password: "auth0-managed" })
             await user.save()
         } else if (name && user.name !== name) {
             user.name = name
