@@ -9,7 +9,6 @@
 <body>
     <div id="debug">Initializing AI Intelligence...</div>
     <img id="faceImg" style="display:none;" />
-    <canvas id="roadCanvas" style="display:none;"></canvas>
 
     <script>
         window.debug = (msg) => {
@@ -243,55 +242,6 @@
 
         function pixelDistance(p1, p2, w, h) { return Math.sqrt(Math.pow((p1.x - p2.x)*w,2) + Math.pow((p1.y - p2.y)*h,2)); }
 
-        // --- PROXIMITY DETECTOR ---
-        // Measures edge density in the center zone of the road frame.
-        // A large close object produces dense edges filling the center.
-        // Returns a hazard score 0-100.
-        async function analyzeRoadProximity(base64) {
-            try {
-                const canvas = document.getElementById('roadCanvas');
-                const ctx = canvas.getContext('2d');
-                const img = new Image();
-                const blob = await (await fetch("data:image/jpeg;base64," + base64)).blob();
-                const url = URL.createObjectURL(blob);
-                await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
-                URL.revokeObjectURL(url);
-
-                // Downsample to 80x60 for speed
-                const SW = 80, SH = 60;
-                canvas.width = SW; canvas.height = SH;
-                ctx.drawImage(img, 0, 0, SW, SH);
-
-                const px = ctx.getImageData(0, 0, SW, SH).data;
-
-                // Analyze center 40% horizontally, bottom 60% vertically (road zone)
-                const x0 = Math.floor(SW * 0.3), x1 = Math.floor(SW * 0.7);
-                const y0 = Math.floor(SH * 0.4), y1 = SH;
-
-                let edgeSum = 0, count = 0;
-                for (let y = y0; y < y1 - 1; y++) {
-                    for (let x = x0; x < x1 - 1; x++) {
-                        const i = (y * SW + x) * 4;
-                        const gray = (px[i] + px[i+1] + px[i+2]) / 3;
-                        const iR = (y * SW + (x+1)) * 4;
-                        const grayR = (px[iR] + px[iR+1] + px[iR+2]) / 3;
-                        const iD = ((y+1) * SW + x) * 4;
-                        const grayD = (px[iD] + px[iD+1] + px[iD+2]) / 3;
-                        edgeSum += Math.abs(gray - grayR) + Math.abs(gray - grayD);
-                        count++;
-                    }
-                }
-
-                // Normalize: avg edge strength, scale to 0-100
-                const avgEdge = count > 0 ? edgeSum / count : 0;
-                // Threshold tuning: empty road ~5-15, close vehicle ~30-60+
-                const score = Math.min(100, Math.round((avgEdge / 40) * 100));
-                return score;
-            } catch (e) {
-                return 0;
-            }
-        }
-
         window.startCalibration = () => { smoother.awakeEARAccumulator = 0; smoother.awakeEARCounter = 0; smoother.isCalibrating = true; };
         window.resetAI = () => { smoother.reset(); window.debug("🧹 AI ENGINE RESET"); };
 
@@ -394,19 +344,10 @@
                     });
                 }
 
-                // --- ROAD PROXIMITY ANALYSIS ---
-                if (roadBase64) {
-                    const hazard = await analyzeRoadProximity(roadBase64);
-                    if (hazard >= 60) {
-                        window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "proximity_alert", hazard });
-                    }
-                    window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "hazard_score", hazard });
-                }
-
                 window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "frame_processed" });
-            } catch (e) {
-                window.debug("⚠️ AI Error: " + e.message);
-                window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "frame_processed" });
+            } catch (e) { 
+                window.debug("⚠️ AI Error: " + e.message); 
+                window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "frame_processed" }); 
             } finally { window.isProcessing = false; }
         };
         initAI();
