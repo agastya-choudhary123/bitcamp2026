@@ -147,8 +147,8 @@ struct LoginView: View {
                     activeUsername = sub
                     driverName = name
                     isLoggedIn = true // Set immediately after local success to ensure access
-                    
-                    syncWithBackend(name: name)
+
+                    syncWithBackend(name: name, sub: sub)
                 case .failure(let error):
                     errorMessage = error.localizedDescription
                 }
@@ -156,8 +156,8 @@ struct LoginView: View {
         }
     }
 
-    private func syncWithBackend(name: String) {
-        let body: [String: Any] = ["name": name]
+    private func syncWithBackend(name: String, sub: String) {
+        let body: [String: Any] = ["name": name, "sub": sub]
         NetworkManager.shared.request(endpoint: "/auth/sync", method: "POST", body: body) { (result: Result<NetworkManager.AuthResponse, Error>) in
             DispatchQueue.main.async {
                 switch result {

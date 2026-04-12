@@ -148,7 +148,10 @@ async function initiateEmergencyCall({ contact, driverName, lat, lng, emergencyR
 // Called by the frontend after Auth0 redirects back with a valid JWT.
 app.post("/auth/sync", requireAuth, async (req, res) => {
     try {
-        const sub = req.auth.payload.sub          // Auth0 user ID (stable, unique)
+        // Use validated JWT sub, fall back to sub sent in body (bypass/dev mode)
+        const sub = req.auth?.payload?.sub !== "local-dev-user"
+            ? req.auth.payload.sub
+            : (req.body.sub || req.auth.payload.sub);
         const { name } = req.body                 // display name passed from frontend
 
         let user = await User.findOne({ username: sub })
