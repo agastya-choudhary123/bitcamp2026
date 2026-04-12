@@ -5,6 +5,7 @@ import { Activity, ShieldCheck, Video as VideoIcon, Terminal, Binary, ChevronDow
 import WaveformChart from "@/components/WaveformChart";
 import { useSafeguardAI } from "@/AI/useSafeguardAI";
 import { useGeminiRisk } from "@/AI/useGeminiRisk";
+import { useClipCapture } from "@/AI/useClipCapture";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -25,6 +26,7 @@ function DashboardPage() {
 
   const { metrics, behaviorStates, severity, hazard } = useSafeguardAI(videoRef, canvasRef);
   const geminiRisk = useGeminiRisk(metrics, behaviorStates, severity, userName);
+  const { isRecording } = useClipCapture(videoRef, behaviorStates, severity, userName);
 
   useEffect(() => {
     if (metrics) setHistory((h) => [...h.slice(1), metrics.ear || 0]);
@@ -81,6 +83,12 @@ function DashboardPage() {
                 <div className="video-container aspect-video relative rounded-xl bg-black">
                     <video ref={videoRef} className="w-full h-full object-cover opacity-90 shadow-2xl" muted playsInline />
                     <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" width={640} height={480} />
+                    {isRecording && (
+                      <div className="absolute top-3 right-3 flex items-center gap-1.5 bg-black/70 px-2.5 py-1.5 rounded-lg">
+                        <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-white">REC</span>
+                      </div>
+                    )}
                 </div>
             </div>
 

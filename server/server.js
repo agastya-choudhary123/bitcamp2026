@@ -185,7 +185,7 @@ app.post("/user/:username/contact", requireAuth, async (req, res) => {
 
         const user = await User.findOneAndUpdate(
             { username: req.params.username },
-            { emergencyContacts: req.body },
+            { emergencyContacts: [req.body] },
             { new: true }
         );
 
@@ -299,25 +299,26 @@ app.post("/replay", requireAuth, async (req, res) => {
 
 
 app.post("/upload-video", requireAuth, async (req, res) => {
-    const { videoBase64, driverName, sessionStart } = req.body
+    const { videoBase64, driverName, sessionStart, states } = req.body
 
     try {
         const result = await cloudinary.uploader.upload(videoBase64, {
             resource_type: "video",
             upload_preset: process.env.CLOUDINARY_UPLOAD_PRESET,
             folder: "safeguard-replays",
-            public_id: `${driverName}-${sessionStart}`
+            public_id: `${driverName}-${Date.now()}`
         })
 
         const replay = new Replay({
             driverName,
-            sessionStart: new Date(sessionStart),
+            sessionStart: sessionStart ? new Date(sessionStart) : new Date(),
             sessionEnd: new Date(),
             videoUrl: result.secure_url,
-            states: []
+            states: states || []
         })
         await replay.save()
 
+        console.log(`✅ Replay saved for ${driverName} — states: ${(states || []).join(", ")} — ${result.secure_url}`)
         res.json({ success: true, videoUrl: result.secure_url })
 
     } catch (err) {

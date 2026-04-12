@@ -29,10 +29,11 @@ function EmergencyContactPage() {
           headers: { Authorization: `Bearer ${token}` },
         });
         const data = await res.json();
-        if (data.name) {
-          setName(data.name);
-          setPhone(data.phone);
-          setRelationship(data.relationship);
+        const contact = Array.isArray(data) ? data[0] : data;
+        if (contact?.name) {
+          setName(contact.name);
+          setPhone(contact.phone);
+          setRelationship(contact.relationship);
         }
       } catch (err) { console.error(err); }
     })();
