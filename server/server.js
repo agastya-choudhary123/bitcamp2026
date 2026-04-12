@@ -110,36 +110,6 @@ async function initiateEmergencyCall({ contact, driverName, lat, lng }) {
     console.log(`📞 Emergency call initiated to ${contact.name} (${contact.phone}) — SID: ${call.sid}`)
 }
 
-// ───────────────────────────────────────────────────────────────────────────
-
-async function generateEmergencySMS({ driverName, emergencyReason, lat, lng, cvState, contact }) {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
-
-    const drowsinessState = cvState.internal?.drowsiness?.state || "unknown"
-    const perclos = cvState.internal?.drowsiness?.perclos30s
-    const impairmentState = cvState.internal?.impairment?.state || "unknown"
-    const crashState = cvState.external?.crash?.state || "clear"
-    const mapsLink = `https://maps.google.com/?q=${lat},${lng}`
-    const relationship = contact.relationship || "contact"
-    const contactName = contact.name || "Emergency Contact"
-
-    const prompt = `You are an emergency alert system for a drowsy driving safety app called DriveGuard.
-Write a concise, urgent SMS (max 160 chars) to ${contactName} (${relationship} of ${driverName}).
-
-Context:
-- Emergency type: ${emergencyReason}
-- Crash state: ${crashState}
-- Drowsiness state: ${drowsinessState}
-${perclos !== undefined ? `- PERCLOS score: ${perclos}%` : ""}
-- Impairment state: ${impairmentState}
-- Location: ${mapsLink}
-
-Write only the SMS message. Be specific, human, and urgent. Include the location link.`
-
-    const result = await model.generateContent(prompt)
-    return result.response.text().trim()
-}
-
 // Auth0 callback — upsert user on first login
 // Called by the frontend after Auth0 redirects back with a valid JWT.
 app.post("/auth/sync", requireAuth, async (req, res) => {
@@ -300,45 +270,27 @@ app.post("/state", requireAuth, async (req, res) => {
         }
     }
 
-    let emergencySMSLog = []
     if (emergencyTriggered) {
         const user = await User.findOne({ username: driverName })
-        const mapsLink = `https://maps.google.com/?q=${lat},${lng}`
 
         console.log("🚨 EMERGENCY TRIGGERED —", emergencyReason)
-        console.log(`Driver: ${driverName}`)
-        console.log(`Location: ${mapsLink}`)
+        console.log(`Driver: ${driverName} | Location: ${lat}, ${lng}`)
 
         const contacts = user?.emergencyContacts || []
         if (contacts.length === 0) {
-            console.log(`ALERT SENT TO: Emergency Services (NO CONTACTS SET)`)
+            console.log(`No emergency contacts set for ${driverName}`)
         } else {
-            // Use Promise.all to handle multiple Gemini calls in parallel
             await Promise.all(contacts.map(async (contact) => {
-                const contactPhone = contact.phone || "NO PHONE"
-                const contactName = contact.name || "Emergency Contact"
-
-                try {
-                    const sms = await generateEmergencySMS({ driverName, emergencyReason, lat, lng, cvState, contact })
-                    console.log(`AI SMS BROADCAST TO ${contactName} (${contactPhone}): ${sms}`)
-                    emergencySMSLog.push({ name: contactName, phone: contactPhone, sms })
-                } catch (e) {
-                    console.error(`Gemini SMS generation failed for ${contactName}:`, e.message)
-                    const fallback = `EMERGENCY: ${driverName} needs help. ${emergencyReason}. Location: ${mapsLink}`
-                    console.log(`FALLBACK SMS TO ${contactName}: ${fallback}`)
-                    emergencySMSLog.push({ name: contactName, phone: contactPhone, sms: fallback })
-                }
-
                 try {
                     await initiateEmergencyCall({ contact, driverName, lat, lng })
                 } catch (e) {
-                    console.error(`Emergency call failed for ${contactName}:`, e.message)
+                    console.error(`Emergency call failed for ${contact.name}:`, e.message)
                 }
             }))
         }
     }
 
-    res.json({ success: true, emergencyTriggered, emergencyReason, emergencySMSLog })
+    res.json({ success: true, emergencyTriggered, emergencyReason })
 })
 
 app.post("/replay", requireAuth, async (req, res) => {
