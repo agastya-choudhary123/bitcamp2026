@@ -1,6 +1,6 @@
 # Safeguard
 
-**AI-powered real-time driver safety system.** Safeguard monitors drivers using computer vision to detect drowsiness, distraction, and forward road hazards — automatically sending emergency SMS alerts with GPS location when danger is detected.
+**Hybrid Intelligent Driver Safety System.** Safeguard monitors driver behavior in real-time using an edge-native hybrid architecture. It combines high-fidelity facial telemetry with dual-port camera awareness to detect drowsiness, intoxication, distraction, and medical emergencies — automatically engaging backend-driven emergency responses and video synchronization.
 
 Built at BitCamp 2026.
 
@@ -8,51 +8,37 @@ Built at BitCamp 2026.
 
 ## How It Works
 
-1. **CV Engine** runs in the browser and processes the driver's camera feed at ~10 Hz using MediaPipe (468 face landmarks) and TensorFlow COCO-SSD.
-2. **Metrics** are extracted each frame: Eye Aspect Ratio (EAR), PERCLOS (rolling 30s eye closure %), head pitch/yaw, yawn detection (MAR), and Time-to-Collision for forward hazards.
-3. **State classifiers** map raw metrics to semantic states — from `alert` through `drowsy_warning` to `non_responsive_emergency`.
-4. **State is sent** to the Express backend every few seconds. The server checks for emergency conditions and, if triggered, calls Gemini to generate personalized SMS alerts sent to all emergency contacts with the driver's name, relationship, and a GPS link.
-5. **Dashboards** (web and mobile) display live telemetry — EAR gauge, waveform history, drowsiness state, and hazard indicators.
+1. **Hybrid AI Engine**: The native iOS app embeds a high-performance JavaScript-based CV processor via `WKWebView`, utilizing **MediaPipe FaceLandmarker** (468 landmarks) to extract facial telemetry at ~15 FPS.
+2. **Temporal Stabilization**: Raw metrics are processed through a `TemporalSmoother` (for jitter reduction and feature extraction) and a `StateStabilizer` (for hysteresis-based classification).
+3. **Safety Thresholds**: To ensure ultra-high accuracy and minimize false alarms, critical states (Intoxicated, Medical) utilize:
+    - **15-second Neural Warm-up**: Extreme threshold suppression during early session tracking.
+    - **15-second Onset Delay**: Continuous detection required before a critical event escalation.
+4. **Dual-Camera Awareness**: Leverages `AVCaptureMultiCamSession` to provide a simultaneous feed of both the driver's face (facial monitoring) and the road ahead (situational awareness).
+5. **Event Synchronization**: Anomaly clips are automatically recorded and uploaded to the cloud, synchronized with real-time state telemetry sent to the Express backend.
 
 ---
 
 ## Features
 
-- **Drowsiness detection** — EAR, PERCLOS, blink rate, and yawning (MAR), classified across 5 levels of severity
-- **Distraction detection** — head pose tracking for looking away, gaze detection for phone use
-- **Crash detection** — forward-facing camera with TTC estimation and post-impact scene analysis
-- **Emergency alerts** — Gemini-generated SMS sent to multiple contacts with GPS location; plain-text fallback if AI call fails
-- **Session replays** — anomaly video clips uploaded to Cloudinary, reviewable with a timeline of states
-- **AI safety reports** — Gemini analyzes the last 30 logged states and produces a personalized feedback report
-- **Multi-platform** — web dashboard, React Native (Expo) mobile app, and native iOS (SwiftUI) app, all backed by the same API
+- **Adaptive Behavioral Monitoring** — EAR, PERCLOS, blink variance, head pose, and yawn detection (MAR) with multi-level severity scoring.
+- **Intoxication Detection** — Advanced inference based on landmark jitter (tremor), head movement entropy, and subtle facial asymmetry.
+- **Medical Emergency Detection** — Real-time monitoring for driver unresponsiveness (catatonia) and seizure-like high-frequency movement.
+- **Dual-Camera Dashboard** — Split-screen situational awareness with dedicated Road and Face monitors.
+- **Automated Video Clipping** — Intelligent triggers capture and upload 20-second video clips of safety anomalies for later review.
+- **Emergency Escalation** — Server-side integration with Gemini to generate and broadcast personalized SMS alerts with GPS links to emergency contacts.
 
 ---
 
 ## Project Structure
 
-```
+```bash
 bitcamp2026/
-├── frontend/       # Web dashboard — TanStack Start, React 19, Tailwind CSS 4, Recharts
-├── server/         # REST API — Node.js, Express, MongoDB/Mongoose, Gemini, Cloudinary
-├── mobile-expo/    # Cross-platform mobile app — React Native, Expo 52
-├── mobile-ios/     # Native iOS app — Swift, SwiftUI
-└── cv-engine/      # Browser-based CV module — MediaPipe, TensorFlow.js COCO-SSD
+├── Safeguard/      # Primary Native iOS App (Swift, SwiftUI, Hybrid AI)
+├── frontend/       # Web Dashboard (TanStack Start, React 19, Tailwind CSS 4)
+├── server/         # Distributed Backend (Node.js, Express, MongoDB, Gemini)
+├── mobile-expo/    # Cross-platform Mobile Client (React Native, Expo 52)
+└── cv-engine/      # Legacy/Reference CV Module (MediaPipe, TF.js)
 ```
-
----
-
-## Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Web frontend | TanStack Start, React 19, Tailwind CSS 4, TanStack Query |
-| Backend | Node.js, Express 4, MongoDB + Mongoose |
-| AI / Alerts | Google Gemini 1.5 Flash |
-| Video storage | Cloudinary |
-| CV (face) | MediaPipe FaceLandmarker (468 landmarks) |
-| CV (objects) | TensorFlow.js COCO-SSD MobileNet V2 |
-| Mobile (cross-platform) | React Native, Expo 52, Expo Router |
-| Mobile (iOS native) | Swift, SwiftUI |
 
 ---
 
@@ -60,19 +46,20 @@ bitcamp2026/
 
 ### Prerequisites
 
+- Xcode 15+ (for Safeguard native iOS)
 - Node.js v18+
-- npm or bun
 - MongoDB connection URI
 - Google Gemini API key
 - Cloudinary account
 
 ### Installation
 
-Install dependencies for all JS projects from the repo root:
-
-```bash
-npm install
-```
+1. Install root & server dependencies:
+   ```bash
+   npm install
+   cd server && npm install
+   ```
+2. Open `Safeguard/Safeguard.xcodeproj` in Xcode to build the native iOS application.
 
 ### Environment Variables
 
@@ -85,40 +72,24 @@ CLOUDINARY_CLOUD_NAME=your_cloud_name
 CLOUDINARY_UPLOAD_PRESET=your_upload_preset
 ```
 
-### Running
-
-| Command | What it starts |
-|---|---|
-| `npm run dev:frontend` | Web dashboard (TanStack Start dev server) |
-| `npm run dev:server` | Backend API on port 3001 |
-| `npm run dev:mobile` | Expo mobile app (opens Expo Go) |
-
-Open the CV engine by serving `cv-engine/index.html` from a local HTTP server (required for camera access).
-
 ---
 
 ## API Overview
 
-The Express server exposes these core endpoints:
-
 | Method | Path | Description |
 |---|---|---|
-| `POST` | `/signup` | Register a new user |
-| `POST` | `/login` | Authenticate user |
-| `POST` | `/state` | Ingest CV state from any client |
-| `GET` | `/status/:username` | Get latest driver state |
-| `POST` | `/upload-video` | Upload anomaly clip to Cloudinary |
-| `GET` | `/replay/:driverName` | List all session replays |
-| `POST` | `/report/generate` | Generate AI safety report via Gemini |
-| `GET/POST` | `/emergency-contacts` | Manage emergency contacts |
+| `POST` | `/state` | Ingest real-time behavioral metrics & states |
+| `POST` | `/upload-video` | Upload anomaly clip (Base64) to Cloudinary |
+| `GET` | `/status/:username` | Retrieve latest driver safety telemetry |
+| `POST` | `/report/generate` | Trigger Gemini-powered safety analysis report |
+| `GET/POST` | `/emergency-contacts` | Manage SMS broadcast recipients |
 
 ---
 
-## Emergency Alert Flow
+## Safety Protocol
 
-When a critical state (`microsleep_risk`, `crash_detected`, `non_responsive_emergency`, etc.) is detected:
-
-1. Server fetches all emergency contacts for the driver
-2. For each contact, Gemini generates a personalized SMS under 160 characters (includes driver name, relationship, and a Google Maps link)
-3. Alert is logged to the database with full context
-4. If Gemini fails, a plain-text fallback message is used
+When a critical state (`medical`, `intoxicated`, `microsleep`) is stabilized for the requisite **15 seconds**:
+1. Server identifies the driver and high-priority emergency contacts.
+2. Google Gemini generates a concise, context-aware alert (Name, Location, State).
+3. The alert is dispatched via the backend messaging pipeline.
+4. A synchronization event is logged, including a link to the corresponding video clip for immediate review by first responders or family.
