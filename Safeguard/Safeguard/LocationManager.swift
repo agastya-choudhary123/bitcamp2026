@@ -12,7 +12,21 @@ class LocationManager: NSObject, ObservableObject, CLLocationManagerDelegate {
         manager.delegate = self
         manager.desiredAccuracy = kCLLocationAccuracyBest
         manager.requestWhenInUseAuthorization()
-        manager.startUpdatingLocation()
+    }
+
+    func locationManagerDidChangeAuthorization(_ manager: CLLocationManager) {
+        let status = manager.authorizationStatus
+        switch status {
+        case .authorizedWhenInUse, .authorizedAlways:
+            print("[Location] Authorized. Starting updates...")
+            manager.startUpdatingLocation()
+        case .denied, .restricted:
+            print("[Location] Denied/Restricted. Telemetry blocked.")
+        case .notDetermined:
+            print("[Location] Authorization pending...")
+        @unknown default:
+            break
+        }
     }
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {

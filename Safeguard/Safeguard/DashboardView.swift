@@ -351,10 +351,9 @@ struct DashboardView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                 }
             }
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 18))
-        .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
-    }
 
     // MARK: - Behavior Card
     var behaviorCard: some View {
@@ -426,6 +425,7 @@ struct DashboardView: View {
         cameraManager.stopSession()
         monitor.stopPolling()
         backgroundProcessor.resetMetrics()
+        AlertSoundManager.shared.stopMicrosleepAlarm()
         stopStateSync()
     }
 

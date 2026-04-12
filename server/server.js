@@ -146,7 +146,9 @@ async function initiateEmergencyCall({ contact, driverName, lat, lng, emergencyR
         console.warn(`⚠️ SKIPPING EMERGENCY CALL to ${contact.name}: Twilio is not configured (missing ACCOUNT_SID or AUTH_TOKEN).`)
         return
     }
-    const alert = `This is an automated emergency alert from Safeguard. ${driverName} needs immediate help. Reason: ${emergencyReason || "Unknown Emergency"}. Their last known location is latitude ${lat}, longitude ${lng}. Please check on them immediately or call 9 1 1.`
+    const latStr = (lat != null && lat !== 0) ? lat.toFixed(4) : "unknown"
+    const lngStr = (lng != null && lng !== 0) ? lng.toFixed(4) : "unknown"
+    const alert = `This is an automated emergency alert from Safeguard. ${driverName} needs immediate help. Reason: ${emergencyReason || "Unknown Emergency"}. Their last known location is latitude ${latStr}, longitude ${lngStr}. Please check on them immediately or call 9 1 1.`
     const message = `${alert} ${alert}`
 
     const twiml = `<Response><Say voice="alice">${message}</Say></Response>`
@@ -272,6 +274,8 @@ app.post("/state", requireAuth, async (req, res) => {
     const state = new DriverState({
         ...cvState,
         driverName,
+        lat,
+        lng,
         emergencyTriggered
     })
     await state.save()
@@ -327,9 +331,19 @@ app.post("/state", requireAuth, async (req, res) => {
                 } else {
                     lastCallRecord.set(driverName, { time: Date.now(), reason: emergencyReason })
                     console.log(`📞 15s elapsed — calling ${contacts.length} contact(s) for ${driverName}`)
+                    
+                    // DYNAMIC REFRESH: Pull latest coordinates before calling
+                    let latestLat = lat, latestLng = lng
+                    const latestRecord = await DriverState.findOne({ driverName }).sort({ timestamp: -1 })
+                    if (latestRecord && latestRecord.lat && latestRecord.lng) {
+                        latestLat = latestRecord.lat
+                        latestLng = latestRecord.lng
+                        console.log(`📍 Using refreshed coordinates: ${latestLat}, ${latestLng}`)
+                    }
+
                     await Promise.all(contacts.map(async (contact) => {
                         try {
-                            await initiateEmergencyCall({ contact, driverName, lat, lng, emergencyReason })
+                            await initiateEmergencyCall({ contact, driverName, lat: latestLat, lng: latestLng, emergencyReason })
                         } catch (e) {
                             console.error(`Call failed for ${contact.name}:`, e.message)
                         }

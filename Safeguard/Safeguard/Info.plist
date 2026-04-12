@@ -24,5 +24,7 @@
 	<string>Safeguard requires camera access for real-time driver fatigue monitoring and road hazard detection.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Safeguard needs to connect to the local development server to sync your emergency contacts and driver telemetry.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Safeguard requires location access to provide your precise coordinates to emergency services and contacts during a critical incident.</string>
 </dict>
 </plist>

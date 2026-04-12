@@ -20,6 +20,7 @@ class BackgroundCVProcessor: NSObject, ObservableObject, WKScriptMessageHandler,
     var webView: WKWebView!
     private var schemeHandler: LocalFileSchemeHandler? 
     private var isReadyForNextFrame: Bool = true
+    private var wasMicrosleeping: Bool = false
     
     override init() {
         super.init()
@@ -123,7 +124,16 @@ class BackgroundCVProcessor: NSObject, ObservableObject, WKScriptMessageHandler,
                         self.lastYaw = m["fYaw"] ?? 0
                         self.lastRoll = m["fRoll"] ?? 0
                     }
-                    if let sts = data["states"] as? [String] { self.driverStates = sts }
+                    if let sts = data["states"] as? [String] { 
+                        let isMicrosleeping = sts.contains("microsleep")
+                        if isMicrosleeping && !self.wasMicrosleeping {
+                            AlertSoundManager.shared.startMicrosleepAlarm()
+                        } else if !isMicrosleeping && self.wasMicrosleeping {
+                            AlertSoundManager.shared.stopMicrosleepAlarm()
+                        }
+                        self.wasMicrosleeping = isMicrosleeping
+                        self.driverStates = sts 
+                    }
                     if let sev = data["severity"] as? Int { self.driverSeverity = sev }
                 }
             }
