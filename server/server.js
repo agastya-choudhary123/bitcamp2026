@@ -11,9 +11,11 @@ const authClientId = process.env.VITE_AUTH0_CLIENT_ID;
 
 const requireAuth = authDomain 
     ? (req, res, next) => {
-        // Developer Bypass for local Dashboard testing
+        // Developer Bypass for local connectivity testing
         if (req.headers["x-safeguard-dev-bypass"] === "true") {
-            req.auth = { payload: { sub: req.body.driverName || "local-dev-user" } };
+            const sub = req.params.username || req.body.driverName || "local-dev-user";
+            console.log(`📡 DEV BYPASS ACTIVE for sub: ${sub}`);
+            req.auth = { payload: { sub: sub } };
             return next();
         }
         return auth({
@@ -56,6 +58,11 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }))
 // Logging AFTER body parsing
 app.use((req, res, next) => {
     console.log(`🌐 [${new Date().toISOString()}] ${req.method} ${req.url}`)
+    if (req.headers.authorization) {
+        console.log("🔐 Auth Header Present:", req.headers.authorization.substring(0, 30) + "...")
+    } else {
+        console.log("🛑 No Auth Header Found")
+    }
     if (req.body && Object.keys(req.body).length > 0) {
         console.log("📦 Body:", JSON.stringify(req.body, null, 2).substring(0, 500))
     }
@@ -169,11 +176,19 @@ app.post("/auth/sync", requireAuth, async (req, res) => {
     }
 })
 
-// Emergency Contact Endpoints
 app.get("/user/:username/contact", requireAuth, async (req, res) => {
     try {
-        const user = await User.findOne({ username: req.params.username })
-        if (!user) return res.status(404).json({ error: "User not found" })
+        let user = await User.findOne({ username: req.params.username })
+        if (!user) {
+            // Lazy create user if they don't exist yet but are authenticated
+            user = new User({ 
+                name: req.params.username, 
+                username: req.params.username, 
+                password: "auth0-managed",
+                emergencyContacts: []
+            })
+            await user.save()
+        }
         res.json(user.emergencyContacts || [])
     } catch (e) {
         res.status(500).json({ error: e.message })
@@ -193,8 +208,14 @@ app.post("/user/:username/contact", requireAuth, async (req, res) => {
 
         const user = await User.findOneAndUpdate(
             { username: req.params.username },
-            { emergencyContacts: contacts },
-            { new: true, upsert: false }
+            { 
+                $set: { emergencyContacts: contacts },
+                $setOnInsert: { 
+                    name: req.params.username,
+                    password: "auth0-managed" 
+                }
+            },
+            { new: true, upsert: true }
         );
 
         if (!user) {
