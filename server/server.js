@@ -44,7 +44,18 @@ expressWs(app)
 
 const riskCache = new Map();
 const lastKnownScores = new Map();
+// Per-driver cooldown: track last call timestamp to prevent spam
+// Key: driverName, Value: { time: Date, reason: string }
+const lastCallRecord = new Map();
+const CALL_COOLDOWN_MS = 5 * 60 * 1000; // 5 minutes between calls per driver
 
+// Per-driver sustained-detection tracker.
+// A call only fires after the emergency state has been continuously
+// present for CALL_DELAY_MS. If the state clears before that, the
+// timer is cancelled and no call is made.
+// Key: driverName, Value: { reason: string, timer: NodeJS.Timeout }
+const pendingCallTimers = new Map();
+const CALL_DELAY_MS = 15_000; // 15 seconds of sustained detection before calling
 
 let appleTwilio = null
 if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
@@ -291,29 +302,54 @@ app.post("/state", requireAuth, async (req, res) => {
         }
     }
 
-    if (emergencyTriggered) {
-        const authSub = req.auth?.payload?.sub
-        const user = await User.findOne({ username: authSub || driverName })
+    const callWorthy = emergencyReason?.includes("INTOXICATED") || emergencyReason?.includes("MEDICAL")
 
-        console.log("🚨 EMERGENCY TRIGGERED —", emergencyReason)
-        console.log(`Driver: ${driverName} | Location: ${lat}, ${lng}`)
+    if (callWorthy) {
+        console.log(`🚨 CALL-WORTHY STATE: ${emergencyReason} — driver: ${driverName}`)
 
-        const callWorthy = emergencyReason?.includes("INTOXICATED") || emergencyReason?.includes("MEDICAL")
-        if (callWorthy) {
-            const contacts = user?.emergencyContacts || []
-            if (contacts.length === 0) {
-                console.log(`No emergency contacts set for ${driverName}`)
-            } else {
-                await Promise.all(contacts.map(async (contact) => {
-                    try {
-                        await initiateEmergencyCall({ contact, driverName, lat, lng, emergencyReason })
-                    } catch (e) {
-                        console.error(`Emergency call failed for ${contact.name}:`, e.message)
-                    }
-                }))
-            }
+        // Cooldown: if we already called for this driver recently, skip
+        const last = lastCallRecord.get(driverName)
+        const now = Date.now()
+        if (last && (now - last.time) < CALL_COOLDOWN_MS) {
+            const remaining = Math.round((CALL_COOLDOWN_MS - (now - last.time)) / 1000)
+            console.log(`⏳ CALL SUPPRESSED — cooldown active (${remaining}s remaining)`)
+        } else if (!pendingCallTimers.has(driverName)) {
+            // No pending timer yet — start the 15-second sustained-detection window
+            console.log(`⏱ Starting 15s confirmation window for ${driverName} (${emergencyReason})`)
+            const timer = setTimeout(async () => {
+                pendingCallTimers.delete(driverName)
+                const authSub = req.auth?.payload?.sub
+                const lookupKey = (authSub && authSub !== "local-dev-user") ? authSub : driverName
+                const user = await User.findOne({ username: lookupKey })
+                const contacts = user?.emergencyContacts?.filter(c => c.phone) || []
+                if (contacts.length === 0) {
+                    console.log(`⚠️ No emergency contacts with phone numbers for ${driverName}`)
+                } else {
+                    lastCallRecord.set(driverName, { time: Date.now(), reason: emergencyReason })
+                    console.log(`📞 15s elapsed — calling ${contacts.length} contact(s) for ${driverName}`)
+                    await Promise.all(contacts.map(async (contact) => {
+                        try {
+                            await initiateEmergencyCall({ contact, driverName, lat, lng, emergencyReason })
+                        } catch (e) {
+                            console.error(`Call failed for ${contact.name}:`, e.message)
+                        }
+                    }))
+                }
+            }, CALL_DELAY_MS)
+            pendingCallTimers.set(driverName, { timer, reason: emergencyReason })
         } else {
-            console.log(`⚠️ Emergency logged but no call triggered for: ${emergencyReason}`)
+            console.log(`⏱ Confirmation window already running for ${driverName}`)
+        }
+    } else {
+        // State cleared or non-call-worthy — cancel any pending timer
+        if (pendingCallTimers.has(driverName)) {
+            const { timer, reason } = pendingCallTimers.get(driverName)
+            clearTimeout(timer)
+            pendingCallTimers.delete(driverName)
+            console.log(`✅ Emergency cleared before 15s — call cancelled for ${driverName} (was: ${reason})`)
+        }
+        if (emergencyTriggered) {
+            console.log(`⚠️ Emergency logged but no call for: ${emergencyReason}`)
         }
     }
 
