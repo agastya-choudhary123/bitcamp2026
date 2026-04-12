@@ -6,7 +6,7 @@ class BackgroundCVProcessor: NSObject, ObservableObject, WKScriptMessageHandler,
     @Published var lastPitch: Double = 0
     @Published var lastYaw: Double = 0
     @Published var lastRoll: Double = 0
-    @Published var hazardScore: Int = 0
+
     
     // Advanced Metrics for Debug/Neural
     @Published var currentMetrics: [String: Double] = [:]
@@ -88,7 +88,7 @@ class BackgroundCVProcessor: NSObject, ObservableObject, WKScriptMessageHandler,
             self.lastPitch = 0
             self.lastYaw = 0
             self.lastRoll = 0
-            self.hazardScore = 0
+
             self.currentMetrics = [:]
             self.driverStates = ["alert"]
             self.driverSeverity = 0
@@ -128,15 +128,15 @@ class BackgroundCVProcessor: NSObject, ObservableObject, WKScriptMessageHandler,
                 }
             }
             
-            if let hazard = data["hazard"] as? Int { self.hazardScore = hazard }
+
         }
     }
     
-    func processFrame(frontBase64: String?, backBase64: String?) {
+    func processFrame(frontBase64: String?) {
         guard isReady && isReadyForNextFrame else { return }
         isReadyForNextFrame = false
         DispatchQueue.main.async {
-            self.webView.evaluateJavaScript("window.processFrames('\(frontBase64 ?? "")', '\(backBase64 ?? "")')", completionHandler: nil)
+            self.webView.evaluateJavaScript("window.processFrames('\(frontBase64 ?? "")')", completionHandler: nil)
         }
     }
 }

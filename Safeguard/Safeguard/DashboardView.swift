@@ -298,35 +298,12 @@ struct DashboardView: View {
     // MARK: - Camera Card
     var cameraCard: some View {
         VStack(spacing: 0) {
-            // TOP: ROAD
-            ZStack(alignment: .topLeading) {
-                CameraViewWrapper(previewLayer: cameraManager.backPreviewLayer)
-                    .frame(height: 220)
-                    .background(Color.black)
-                
-                VStack(alignment: .leading, spacing: 4) {
-                    Label("EXTERNAL: ROAD MONITOR", systemImage: "car.fill")
-                        .font(.system(size: 9, weight: .black))
-                        .padding(6)
-                        .background(Color.black.opacity(0.6))
-                        .foregroundColor(.white)
-                    
-                    if backgroundProcessor.hazardScore > 0 {
-                        Text("HAZARD DETECTED")
-                            .font(.system(size: 10, weight: .black))
-                            .padding(6)
-                            .background(Color.sdRed)
-                            .foregroundColor(.white)
-                    }
-                }
-                .padding(8)
-            }
-            
-            // BOTTOM: FACE
+            // MAIN CAMERA: FACE
             ZStack(alignment: .topLeading) {
                 CameraViewWrapper(previewLayer: cameraManager.frontPreviewLayer)
-                    .frame(height: 220)
+                    .frame(height: 380)
                     .background(Color.black)
+                    .clipShape(RoundedRectangle(cornerRadius: 18))
 
                 HStack(spacing: 8) {
                     Circle()

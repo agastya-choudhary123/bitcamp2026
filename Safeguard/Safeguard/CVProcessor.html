@@ -245,7 +245,7 @@
         window.startCalibration = () => { smoother.awakeEARAccumulator = 0; smoother.awakeEARCounter = 0; smoother.isCalibrating = true; };
         window.resetAI = () => { smoother.reset(); window.debug("🧹 AI ENGINE RESET"); };
 
-        window.processFrames = async (faceBase64, roadBase64) => {
+        window.processFrames = async (faceBase64) => {
             if (!window.isAIReady || window.isProcessing) return;
             window.isProcessing = true;
             const now = Date.now();
