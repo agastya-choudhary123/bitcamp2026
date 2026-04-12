@@ -16,6 +16,7 @@ class BackgroundCVProcessor: NSObject, ObservableObject, WKScriptMessageHandler,
     @Published var driverSeverity: Int = 0
     @Published var isCalibrating: Bool = false
     @Published var isReady: Bool = false
+    @Published var hazardScore: Int = 0
     
     var webView: WKWebView!
     private var schemeHandler: LocalFileSchemeHandler? 
@@ -92,6 +93,7 @@ class BackgroundCVProcessor: NSObject, ObservableObject, WKScriptMessageHandler,
             self.currentMetrics = [:]
             self.driverStates = ["alert"]
             self.driverSeverity = 0
+            self.hazardScore = 0
             self.webView.evaluateJavaScript("window.resetAI()", completionHandler: nil)
         }
     }
@@ -114,6 +116,11 @@ class BackgroundCVProcessor: NSObject, ObservableObject, WKScriptMessageHandler,
                     return
                 }
                 
+                if type == "hazard_score" {
+                    if let score = data["score"] as? Int { self.hazardScore = score }
+                    return
+                }
+
                 if type == "ai_update" {
                     // 1:1 Mirror of Web Logic Output
                     if let m = data["metrics"] as? [String: Double] {

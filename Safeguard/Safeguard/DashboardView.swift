@@ -159,6 +159,22 @@ struct DashboardView: View {
                 stopClipAndUpload()
             }
         }
+        .onChange(of: backgroundProcessor.driverStates) { _, states in
+            guard isDriving else { return }
+            if states.contains("microsleep") {
+                AlertSoundManager.shared.playMicrosleepAlarm()
+            } else {
+                AlertSoundManager.shared.stopMicrosleepAlarm()
+            }
+        }
+        .onChange(of: backgroundProcessor.hazardScore) { _, score in
+            guard isDriving else { return }
+            if score >= 60 {
+                AlertSoundManager.shared.playCollisionWarning()
+            } else {
+                AlertSoundManager.shared.stopCollisionWarning()
+            }
+        }
     }
 
     // MARK: - Top Bar
@@ -427,6 +443,7 @@ struct DashboardView: View {
         monitor.stopPolling()
         backgroundProcessor.resetMetrics()
         stopStateSync()
+        AlertSoundManager.shared.stopAll()
     }
 
     // MARK: - State Sync
