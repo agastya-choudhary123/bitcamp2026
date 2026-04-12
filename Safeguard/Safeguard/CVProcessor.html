@@ -302,16 +302,16 @@
                         if ((fv.fClosureDur || 0) * 2500 > 2500) rawStates.push("microsleep");
                         
                         for (const [state, weights] of Object.entries(LEARNED_WEIGHTS)) {
-                            if (state === "alert" || state === "medical") continue;
+                            if (state === "alert") continue;
                             let z = weights.bias;
                             for (const [feat, w] of Object.entries(weights)) {
                                 if (feat !== "bias") z += w * (fv[feat] || 0);
                             }
                             
                             let threshold = 0.5;
-                            if (state === "intoxicated") {
+                            if (state === "intoxicated" || state === "medical") {
                                 threshold = 0.96; // Ultra-strict general threshold
-                                // Neural Warm-up: extreme suppression during early session
+                                // Neural Warm-up: extreme suppression during early session (15s)
                                 if (now - smoother.sessionStartTs < 15000) threshold = 0.995;
                             }
 
