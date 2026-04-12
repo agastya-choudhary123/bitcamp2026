@@ -31,25 +31,18 @@ const WaveformChart: React.FC<WaveformChartProps> = ({ dataPoints }) => {
   const options = {
     responsive: true,
     maintainAspectRatio: false,
-    scales: {
-      y: {
-        min: 0.1,
-        max: 0.5,
-        grid: { color: 'rgba(255, 255, 255, 0.05)' },
-        ticks: { color: 'rgba(148, 163, 184, 0.5)', font: { size: 10 } },
-      },
-      x: {
-        display: false,
-        grid: { display: false },
-      },
-    },
     plugins: {
       legend: { display: false },
       tooltip: { enabled: false },
     },
-    elements: {
-      line: { tension: 0.4 },
-      point: { radius: 0 },
+    scales: {
+      x: { display: false },
+      y: {
+        min: 0,
+        max: 0.6,
+        ticks: { color: 'rgba(156, 163, 175, 0.5)', stepSize: 0.2 },
+        grid: { color: 'rgba(156, 163, 175, 0.05)' },
+      },
     },
     animation: { duration: 0 } as const,
   };
@@ -61,15 +54,17 @@ const WaveformChart: React.FC<WaveformChartProps> = ({ dataPoints }) => {
         fill: true,
         label: 'EAR Score',
         data: dataPoints,
-        borderColor: '#6366f1',
-        backgroundColor: 'rgba(99, 102, 241, 0.1)',
-        borderWidth: 3,
+        borderColor: '#005fe7',
+        backgroundColor: 'rgba(0, 95, 231, 0.05)',
+        borderWidth: 2,
+        tension: 0.4,
+        pointRadius: 0,
       },
     ],
   };
 
   return (
-    <div className="w-full h-full min-h-[200px]">
+    <div className="w-full h-[120px]">
       <Line options={options} data={data} />
     </div>
   );

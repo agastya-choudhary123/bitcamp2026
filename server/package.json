@@ -13,7 +13,6 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "@elevenlabs/elevenlabs-js": "^2.42.0",
     "@google/generative-ai": "^0.21.0",
     "cloudinary": "^2.9.0",
     "cors": "^2.8.5",

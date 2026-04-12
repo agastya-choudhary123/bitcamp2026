@@ -95,17 +95,12 @@
 }
 
 @layer components {
-  .safeguard-card {
+  .safeguard-card, .glass-card {
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 12px;
     box-shadow: var(--safeguard-shadow);
     transition: all 0.2s ease;
-  }
-  
-  /* Compat */
-  .glass-card {
-    @apply safeguard-card;
   }
 
   .btn-primary {

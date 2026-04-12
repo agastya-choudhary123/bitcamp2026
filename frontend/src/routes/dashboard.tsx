@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { Activity, ShieldCheck, Video as VideoIcon, Terminal, Binary, ChevronDown, ChevronUp, Info, AlertTriangle } from "lucide-react";
 import WaveformChart from "@/components/WaveformChart";
-import AIReport from "@/components/AIReport";
 import RiskScore from "@/components/RiskScore";
 import { useSafeguardAI } from "@/AI/useSafeguardAI";
 
@@ -196,7 +195,6 @@ function DashboardPage() {
                 </div>
             </div>
 
-            <AIReport sessionId="current_session" />
           </div>
         </div>
       </div>

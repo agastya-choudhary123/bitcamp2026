@@ -48,6 +48,8 @@ function RootComponent() {
       authorizationParams={{
         redirect_uri: import.meta.env.VITE_AUTH0_CALLBACK_URL,
       }}
+      cacheLocation="localstorage"
+      useRefreshTokens={true}
     >
       <Outlet />
     </Auth0Provider>

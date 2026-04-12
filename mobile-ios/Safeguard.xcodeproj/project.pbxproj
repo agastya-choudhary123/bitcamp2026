@@ -162,6 +162,14 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.safeguard.Safeguard;
+				INFOPLIST_KEY_CFBundleURLTypes = (
+					{
+						CFBundleURLName = Auth0;
+						CFBundleURLSchemes = (
+							"$(PRODUCT_BUNDLE_IDENTIFIER)",
+						);
+					},
+				);
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -181,6 +189,14 @@
 					"@executable_path/Frameworks",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.safeguard.Safeguard;
+				INFOPLIST_KEY_CFBundleURLTypes = (
+					{
+						CFBundleURLName = Auth0;
+						CFBundleURLSchemes = (
+							"$(PRODUCT_BUNDLE_IDENTIFIER)",
+						);
+					},
+				);
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};

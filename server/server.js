@@ -4,7 +4,6 @@ const expressWs = require("express-ws")
 const cors = require("cors")
 const mongoose = require("mongoose")
 const { auth } = require("express-oauth2-jwt-bearer")
-const { ElevenLabsClient } = require("@elevenlabs/elevenlabs-js")
 const twilio = require("twilio")
 
 const authDomain = process.env.VITE_AUTH0_DOMAIN;
@@ -39,8 +38,11 @@ cloudinary.config({
 const app = express()
 expressWs(app)
 
-const elevenlabs = new ElevenLabsClient({ apiKey: process.env.ELEVENLABS_API_KEY })
-const twilioClient = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+
+let appleTwilio = null
+if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
+    appleTwilio = twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+}
 
 app.use(cors())
 app.use(express.json({ limit: '50mb' }))
@@ -100,30 +102,31 @@ const DriverState = mongoose.model("DriverState", new mongoose.Schema({
 
 const Replay = mongoose.model("Replay", replaySchema)
 
-const reportSchema = new mongoose.Schema({
-    driverName: String,
-    timestamp: { type: Date, default: Date.now },
-    reportText: String
-})
-const Report = mongoose.model("Report", reportSchema)
 
-const { Readable } = require("stream")
 const { GoogleGenerativeAI } = require("@google/generative-ai")
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
 
 // ── ElevenLabs / Twilio voice call ─────────────────────────────────────────
 
 async function initiateEmergencyCall({ contact, driverName, lat, lng, emergencyReason }) {
+    if (!appleTwilio) {
+        console.warn(`⚠️ SKIPPING EMERGENCY CALL to ${contact.name}: Twilio is not configured (missing ACCOUNT_SID or AUTH_TOKEN).`)
+        return
+    }
     const alert = `This is an automated emergency alert from Safeguard. ${driverName} needs immediate help. Reason: ${emergencyReason || "Unknown Emergency"}. Their last known location is latitude ${lat}, longitude ${lng}. Please check on them immediately or call 9 1 1.`
     const message = `${alert} ${alert}`
 
     const twiml = `<Response><Say voice="alice">${message}</Say></Response>`
-    const call = await twilioClient.calls.create({
-        to: contact.phone,
-        from: process.env.TWILIO_PHONE_NUMBER,
-        twiml
-    })
-    console.log(`📞 Emergency call initiated to ${contact.name} (${contact.phone}) — SID: ${call.sid}`)
+    try {
+        const call = await appleTwilio.calls.create({
+            to: contact.phone,
+            from: process.env.TWILIO_PHONE_NUMBER,
+            twiml
+        })
+        console.log(`📞 Emergency call initiated to ${contact.name} (${contact.phone}) — SID: ${call.sid}`)
+    } catch (err) {
+        console.error(`❌ FAILED TO INITIATE EMERGENCY CALL to ${contact.name}:`, err.message)
+    }
 }
 
 // Auth0 callback — upsert user on first login
@@ -184,56 +187,6 @@ app.post("/user/:username/contact", requireAuth, async (req, res) => {
     }
 })
 
-app.get("/report/:driverName", requireAuth, async (req, res) => {
-    try {
-        const reports = await Report.find({ driverName: req.params.driverName })
-            .sort({ timestamp: -1 })
-        res.json(reports)
-    } catch (e) {
-        res.status(500).json({ error: e.message })
-    }
-})
-
-app.post("/report/generate", requireAuth, async (req, res) => {
-    try {
-        const { driverName } = req.body
-        const logs = await DriverState.find({ driverName: driverName })
-            .sort({ timestamp: -1 })
-            .limit(30);
-
-        if (logs.length === 0) return res.json({ success: true, message: "Not enough data" });
-
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        const summary = logs.map(l => ({
-            time: new Date(l.timestamp).toLocaleTimeString(),
-            states: l.behaviorStates || [l.internal?.drowsiness?.state || "alert"],
-            ear: l.ear,
-            hazard: l.external?.forwardHazard?.state
-        }));
-
-        const prompt = `You are a professional safety analyst for Safeguard AI.
-Analyze these high-resolution behavioral logs for ${driverName}:
-${JSON.stringify(summary)}
-
-Provide a concise, professional safety report. 
-- Highlight any dangerous combinations (e.g., being drowsy while using a phone).
-- Give 2 actionable, coaching-focused improvements.
-- Keep the tone serious but helpful.
-- Format as a clean markdown report.`;
-        const result = await model.generateContent(prompt);
-        const reportString = result.response.text();
-
-        const newReport = new Report({
-            driverName: driverName,
-            reportText: reportString
-        });
-        await newReport.save();
-
-        res.json({ success: true, report: newReport });
-    } catch (e) {
-        res.status(500).json({ error: e.message });
-    }
-})
 
 function checkEmergency(state) {
     const states = Array.isArray(state.behaviorStates) ? state.behaviorStates : [state.behaviorState || "alert"];
