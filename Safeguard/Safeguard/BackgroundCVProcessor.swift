@@ -132,11 +132,11 @@ class BackgroundCVProcessor: NSObject, ObservableObject, WKScriptMessageHandler,
         }
     }
     
-    func processFrame(frontBase64: String?) {
+    func processFrame(frontBase64: String?, backBase64: String?) {
         guard isReady && isReadyForNextFrame else { return }
         isReadyForNextFrame = false
         DispatchQueue.main.async {
-            self.webView.evaluateJavaScript("window.processFrames('\(frontBase64 ?? "")')", completionHandler: nil)
+            self.webView.evaluateJavaScript("window.processFrames('\(frontBase64 ?? "")', '\(backBase64 ?? "")')", completionHandler: nil)
         }
     }
 }

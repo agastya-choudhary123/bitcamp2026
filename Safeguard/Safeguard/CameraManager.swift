@@ -11,12 +11,14 @@ class CameraManager: NSObject, ObservableObject {
     private let sessionQueue = DispatchQueue(label: "com.safeguard.sessionQueue")
 
     // Preview Layers for SwiftUI wrappers
-    @Published var activePreviewLayer: AVCaptureVideoPreviewLayer?
+    @Published var backPreviewLayer: AVCaptureVideoPreviewLayer?
+    @Published var frontPreviewLayer: AVCaptureVideoPreviewLayer?
 
     // Bridge to CV Processor
     var cvProcessor: BackgroundCVProcessor?
-    private var frameCount = 0
-    private let sampleRate = 3 // Process every 3rd frame (~10 FPS)
+    private var backFrameCount = 0
+    private var frontFrameCount = 0
+    private let sampleRate = 3 // Process every 3rd frame per camera (~10 FPS)
 
     // MARK: - Clip Recording (AVAssetWriter)
     private var assetWriter: AVAssetWriter?
@@ -44,7 +46,7 @@ class CameraManager: NSObject, ObservableObject {
                 // Rotate 90° clockwise so the clip plays upright in portrait.
                 // Matrix for 90° CW with translation so origin stays in frame:
                 //   [a=0, b=-1, c=1, d=0, tx=0, ty=sourceWidth(640)]
-                input.transform = CGAffineTransform(a: 0, b: 1, c: -1, d: 0, tx: 480, ty: 0)
+                input.transform = CGAffineTransform(a: 0, b: -1, c: 1, d: 0, tx: 0, ty: 640)
                 if writer.canAdd(input) { writer.add(input) }
                 writer.startWriting()
                 self.assetWriter = writer
@@ -127,33 +129,60 @@ class CameraManager: NSObject, ObservableObject {
         session.outputs.forEach { session.removeOutput($0) }
         defer { session.commitConfiguration() }
         
+        // 1. Back Camera
         guard let backCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back),
               let backInput = try? AVCaptureDeviceInput(device: backCamera) else { return }
         if session.canAddInput(backInput) { session.addInputWithNoConnections(backInput) }
         
+        // 2. Front Camera
+        guard let frontCamera = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .front),
+              let frontInput = try? AVCaptureDeviceInput(device: frontCamera) else { return }
+        if session.canAddInput(frontInput) { session.addInputWithNoConnections(frontInput) }
+        
         let backPort = backInput.ports(for: .video, sourceDeviceType: backCamera.deviceType, sourceDevicePosition: .back).first
+        let frontPort = frontInput.ports(for: .video, sourceDeviceType: frontCamera.deviceType, sourceDevicePosition: .front).first
+        
         let backOutput = AVCaptureVideoDataOutput()
+        let frontOutput = AVCaptureVideoDataOutput()
         backOutput.setSampleBufferDelegate(self, queue: sessionQueue)
+        frontOutput.setSampleBufferDelegate(self, queue: sessionQueue)
+        
         if session.canAddOutput(backOutput) { session.addOutputWithNoConnections(backOutput) }
+        if session.canAddOutput(frontOutput) { session.addOutputWithNoConnections(frontOutput) }
         
         if let backPort = backPort {
-            let backConnection = AVCaptureConnection(inputPort: backPort, videoPreviewLayer: AVCaptureVideoPreviewLayer(sessionWithNoConnection: session))
-            if session.canAddConnection(backConnection) {
-                session.addConnection(backConnection)
+            let conn = AVCaptureConnection(inputPort: backPort, videoPreviewLayer: AVCaptureVideoPreviewLayer(sessionWithNoConnection: session))
+            if session.canAddConnection(conn) {
+                session.addConnection(conn)
                 DispatchQueue.main.async {
-                    self.activePreviewLayer = backConnection.videoPreviewLayer
-                    self.activePreviewLayer?.videoGravity = .resizeAspectFill
+                    self.backPreviewLayer = conn.videoPreviewLayer
+                    self.backPreviewLayer?.videoGravity = .resizeAspectFill
                 }
             }
-            let backOutputConnection = AVCaptureConnection(inputPorts: [backPort], output: backOutput)
-            if session.canAddConnection(backOutputConnection) { session.addConnection(backOutputConnection) }
+            let outConn = AVCaptureConnection(inputPorts: [backPort], output: backOutput)
+            if session.canAddConnection(outConn) { session.addConnection(outConn) }
+        }
+        
+        if let frontPort = frontPort {
+            let conn = AVCaptureConnection(inputPort: frontPort, videoPreviewLayer: AVCaptureVideoPreviewLayer(sessionWithNoConnection: session))
+            if session.canAddConnection(conn) {
+                session.addConnection(conn)
+                DispatchQueue.main.async {
+                    self.frontPreviewLayer = conn.videoPreviewLayer
+                    self.frontPreviewLayer?.videoGravity = .resizeAspectFill
+                }
+            }
+            let outConn = AVCaptureConnection(inputPorts: [frontPort], output: frontOutput)
+            if session.canAddConnection(outConn) { session.addConnection(outConn) }
         }
     }
 }
 
 extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        if isRecording, let writer = assetWriter, let input = assetWriterInput, writer.status == .writing {
+        let position: AVCaptureDevice.Position = (connection.inputPorts.first?.sourceDevicePosition == .front) ? .front : .back
+
+        if position == .front, isRecording, let writer = assetWriter, let input = assetWriterInput, writer.status == .writing {
             let pts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
             if recordingStartTime == nil {
                 recordingStartTime = pts
@@ -162,20 +191,22 @@ extension CameraManager: AVCaptureVideoDataOutputSampleBufferDelegate {
             if input.isReadyForMoreMediaData { input.append(sampleBuffer) }
         }
 
-        frameCount += 1
-        guard frameCount % sampleRate == 0 else { return }
+        if position == .front { frontFrameCount += 1; guard frontFrameCount % sampleRate == 0 else { return } }
+        else { backFrameCount += 1; guard backFrameCount % sampleRate == 0 else { return } }
         
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         let ciImage = CIImage(cvPixelBuffer: pixelBuffer)
         let context = CIContext()
         guard let cgImage = context.createCGImage(ciImage, from: ciImage.extent) else { return }
         
-        let uiImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: .right)
+        let orientation: UIImage.Orientation = (position == .front) ? .leftMirrored : .right
+        let uiImage = UIImage(cgImage: cgImage, scale: 1.0, orientation: orientation)
         let data = uiImage.jpegData(compressionQuality: 0.7)
         let base64 = data?.base64EncodedString()
         
         if let b64 = base64 {
-            cvProcessor?.processFrame(frontBase64: b64)
+            if position == .front { cvProcessor?.processFrame(frontBase64: b64, backBase64: nil) }
+            else { cvProcessor?.processFrame(frontBase64: nil, backBase64: b64) }
         }
     }
 }

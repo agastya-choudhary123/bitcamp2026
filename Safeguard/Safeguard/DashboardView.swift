@@ -298,24 +298,43 @@ struct DashboardView: View {
     // MARK: - Camera Card
     var cameraCard: some View {
         VStack(spacing: 0) {
-            // MAIN CAMERA FEED
-            ZStack(alignment: .topLeading) {
-                CameraViewWrapper(previewLayer: cameraManager.activePreviewLayer)
-                    .frame(height: 380)
-                    .background(Color.black)
-                    .clipShape(RoundedRectangle(cornerRadius: 18))
-
-                HStack(spacing: 8) {
-                    Circle()
-                        .fill(backgroundProcessor.isReady ? Color.sdGreen : Color.sdRed)
-                        .frame(width: 8, height: 8)
-                    Text(backgroundProcessor.isReady ? "LIVE BACK CAMERA AI" : "INITIALIZING AI...")
+            // CAMERA STACK: ROAD (TOP) + FACE (BOTTOM)
+            VStack(spacing: 0) {
+                // TOP: ROAD
+                ZStack(alignment: .topLeading) {
+                    CameraViewWrapper(previewLayer: cameraManager.backPreviewLayer)
+                        .frame(height: 220)
+                        .background(Color.black)
+                    
+                    Label("EXTERNAL: ROAD MONITOR", systemImage: "car.fill")
+                        .font(.system(size: 9, weight: .black))
+                        .padding(6)
+                        .background(Color.black.opacity(0.6))
+                        .foregroundColor(.white)
+                        .padding(8)
                 }
-                .font(.system(size: 10, weight: .black))
-                .padding(8)
-                .background(backgroundProcessor.driverSeverity >= 3 ? Color.sdRed : Color.sdPrimary.opacity(0.9))
-                .foregroundColor(.white)
-                .padding(8)
+                
+                // BOTTOM: FACE
+                ZStack(alignment: .topLeading) {
+                    CameraViewWrapper(previewLayer: cameraManager.frontPreviewLayer)
+                        .frame(height: 220)
+                        .background(Color.black)
+
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(backgroundProcessor.isReady ? Color.sdGreen : Color.sdRed)
+                            .frame(width: 8, height: 8)
+                        Text(backgroundProcessor.isReady ? "LIVE FACIAL AI" : "INITIALIZING AI...")
+                    }
+                    .font(.system(size: 10, weight: .black))
+                    .padding(8)
+                    .background(backgroundProcessor.driverSeverity >= 3 ? Color.sdRed : Color.sdPrimary.opacity(0.9))
+                    .foregroundColor(.white)
+                    .padding(8)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 18))
+            .shadow(color: .black.opacity(0.1), radius: 10, y: 5)
 
                 // REC badge
                 if isClipping {
