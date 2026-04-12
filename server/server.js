@@ -38,6 +38,9 @@ cloudinary.config({
 const app = express()
 expressWs(app)
 
+const riskCache = new Map();
+const lastKnownScores = new Map();
+
 
 let appleTwilio = null
 if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN) {
@@ -331,6 +334,15 @@ app.get("/replay/:driverName", requireAuth, async (req, res) => {
 
 app.get("/risk/:driverName", requireAuth, async (req, res) => {
     try {
+        const cacheKey = `history-${req.params.driverName}`;
+        const now = Date.now();
+        if (riskCache.has(cacheKey)) {
+            const cached = riskCache.get(cacheKey);
+            if (now - cached.timestamp < 300000) { // 5 min cache for history
+                return res.json(cached.data);
+            }
+        }
+
         const logs = await DriverState.find({ driverName: req.params.driverName })
             .sort({ timestamp: -1 })
             .limit(30)
@@ -349,7 +361,7 @@ app.get("/risk/:driverName", requireAuth, async (req, res) => {
             emergency: l.emergencyTriggered
         }))
 
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" })
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" })
         const prompt = `You are a driving safety AI. Analyze these recent driving telemetry logs and return a JSON object with:
 - "score": integer 0-100 (0 = perfectly safe, 100 = extremely dangerous)
 - "label": one of "Safe", "Low Risk", "Moderate Risk", "High Risk", "Critical"
@@ -363,12 +375,95 @@ Respond ONLY with valid JSON. No markdown, no explanation.`
 
         const result = await model.generateContent(prompt)
         let text = result.response.text().trim()
-        // Strip markdown code fences if present
         text = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "")
         const parsed = JSON.parse(text)
+        
+        riskCache.set(cacheKey, { timestamp: now, data: parsed });
         res.json(parsed)
     } catch (e) {
         console.error("Risk scoring error:", e.message)
+        res.status(500).json({ error: e.message })
+    }
+})
+
+app.post("/risk/live", async (req, res) => {
+    try {
+        const { metrics, behaviorStates, severity, driverName } = req.body
+        const cacheKey = `live-${driverName || "anonymous"}`;
+        const now = Date.now();
+
+        // 1. Check cache (60 seconds)
+        if (riskCache.has(cacheKey)) {
+            const cached = riskCache.get(cacheKey);
+            if (now - cached.timestamp < 60000) {
+                return res.json(cached.data);
+            }
+        }
+
+        const m = metrics || {}
+        const stateList = (behaviorStates || []).join(", ") || "alert"
+        const severityPct = (((severity || 0) / 5) * 100).toFixed(0)
+
+        const prompt = `You are a real-time driver safety AI embedded in the Safeguard Intelligence system.
+Analyze the following live biometric snapshot and classify driver impairment risk.
+
+--- CURRENT BEHAVIORAL STATE ---
+Active states: ${stateList}
+Severity level: ${severity}/5 (${severityPct}%)
+
+--- BIOMETRIC METRICS ---
+Eye Aspect Ratio (EAR): ${m.ear?.toFixed(4) ?? "N/A"}  [Normal: >0.28]
+PERCLOS (% eye closure): ${m.perclos != null ? (m.perclos * 100).toFixed(1) + "%" : "N/A"}  [Normal: <8%]
+Blink Rate: ${m.blinkRatePerMin?.toFixed(1) ?? m.blinkRate?.toFixed(1) ?? "N/A"} bpm  [Normal: 10-20]
+Blink Duration: ${m.blinkDuration != null ? Math.round(m.blinkDuration) + "ms" : "N/A"}  [Normal: 100-200ms]
+Blink Interval Variance: ${m.blinkIntervalVariance?.toFixed(0) ?? "N/A"} ms2  [Normal: <200]
+Slow Blinks: ${m.slowBlinks ?? "N/A"}  [Normal: <5]
+Eye Rubs: ${m.eyeRubs ?? "N/A"}
+Yawn Count (5min): ${m.yawnCount ?? "N/A"}  [Normal: 0-1]
+Head Entropy: ${m.entropy?.toFixed(2) ?? "N/A"}  [Normal: 0.5-1.2; Intoxicated: >2.0]
+Micro-Tremor: ${m.microTremor?.toFixed(5) ?? "N/A"}  [Normal: <0.00015]
+Head Pitch: ${m.headPitch?.toFixed(1) ?? "N/A"} deg  [Normal: +-15]
+Head Yaw: ${m.headYaw?.toFixed(1) ?? "N/A"} deg  [Normal: +-20]
+Head Roll: ${m.headRoll?.toFixed(1) ?? "N/A"} deg  [Normal: +-8]
+Gaze Ratio (horizontal): ${m.gazeRatio?.toFixed(2) ?? "N/A"}  [Centered: 0.5]
+Gaze Vertical: ${m.gazeVertical?.toFixed(2) ?? "N/A"}  [Normal: 0.3-0.6]
+Posture Lean: ${m.postureLean?.toFixed(2) ?? "N/A"}  [Normal: <0.08]
+Fatigue Ratio: ${m.fatigueRatio?.toFixed(2) ?? "N/A"}  [Normal: >0.85]
+Facial Asymmetry: ${m.asymmetryScore?.toFixed(3) ?? "N/A"}  [Normal: <0.15; Stroke risk: >0.25]
+
+--- TASK ---
+Return ONLY valid JSON, no markdown, no explanation:
+{"score":<integer 0-100>,"label":"<Low|Moderate|High|Critical>","summary":"<1-2 sentence assessment>","recommendations":["<action 1>","<action 2>","<action 3>"]}
+
+Scoring guide: 0-24 Low, 25-49 Moderate, 50-74 High, 75-100 Critical.
+Weights: intoxicated +40, medical/microsleep +45, drowsy +20, distracted/phone +10.
+PERCLOS >15% serious, >30% critical. Entropy >2.0 + tremor >0.0002 = intoxication signal.
+Asymmetry >0.25 = stroke signal, score must be >=75.`
+
+        const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" })
+        const result = await model.generateContent(prompt)
+        let text = result.response.text().trim()
+        text = text.replace(/^```(?:json)?\n?/, "").replace(/\n?```$/, "").trim()
+        const parsed = JSON.parse(text)
+        
+        const finalData = {
+            score: Math.max(0, Math.min(100, Number(parsed.score) || 0)),
+            label: parsed.label ?? "Low",
+            summary: parsed.summary ?? "",
+            recommendations: Array.isArray(parsed.recommendations) ? parsed.recommendations.slice(0, 4) : []
+        };
+
+        riskCache.set(cacheKey, { timestamp: now, data: finalData });
+        lastKnownScores.set(cacheKey, finalData);
+        res.json(finalData)
+    } catch (e) {
+        console.error("Live risk scoring error:", e.message)
+        // Fallback to last known score if we hit a rate limit
+        const cacheKey = `live-${req.body.driverName || "anonymous"}`;
+        if (lastKnownScores.has(cacheKey)) {
+            console.log("Returning last known score due to error/limit");
+            return res.json(lastKnownScores.get(cacheKey));
+        }
         res.status(500).json({ error: e.message })
     }
 })

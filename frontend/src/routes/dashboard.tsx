@@ -1,10 +1,10 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { Activity, ShieldCheck, Video as VideoIcon, Terminal, Binary, ChevronDown, ChevronUp, Info, AlertTriangle } from "lucide-react";
+import { Activity, ShieldCheck, Video as VideoIcon, Terminal, Binary, ChevronDown, ChevronUp, Info, AlertTriangle, RefreshCw, CheckCircle } from "lucide-react";
 import WaveformChart from "@/components/WaveformChart";
-import RiskScore from "@/components/RiskScore";
 import { useSafeguardAI } from "@/AI/useSafeguardAI";
+import { useGeminiRisk } from "@/AI/useGeminiRisk";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -23,6 +23,7 @@ function DashboardPage() {
   const navigate = Route.useNavigate();
 
   const { metrics, behaviorStates, severity, hazard } = useSafeguardAI(videoRef, canvasRef);
+  const geminiRisk = useGeminiRisk(metrics, behaviorStates, severity);
 
   useEffect(() => {
     if (metrics) setHistory((h) => [...h.slice(1), metrics.ear || 0]);
@@ -120,10 +121,6 @@ function DashboardPage() {
                 </div>
             </div>
             
-            {/* INTEGRATED: Upstream RiskScore & AIReport for the main flow */}
-            <div className="grid grid-cols-1 gap-8">
-               <RiskScore />
-            </div>
           </div>
 
           {/* RIGHT: DEBUG TELEMETRY GRID */}
@@ -184,14 +181,76 @@ function DashboardPage() {
                                  desc="Side-to-side head tilt (ear towards shoulder)." />
                 </div>
 
-                <div className="mt-10 pt-6 border-t border-gray-100">
-                    <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-[0.2em] text-gray-400 mb-2">
+                <div className="mt-10 pt-6 border-t border-gray-100 space-y-4">
+                    {/* Header */}
+                    <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-[0.2em] text-gray-400">
                         <span>Risk Integrity Profile</span>
-                        <span className={severity > 0 ? "text-red-500" : "text-[#10b981]"}>{severity > 0 ? ((severity / 5) * 100).toFixed(0) : 0}%</span>
+                        <div className="flex items-center gap-2">
+                            {geminiRisk.loading && (
+                                <RefreshCw size={10} className="animate-spin text-[#005fe7]" />
+                            )}
+                            {geminiRisk.lastUpdated && !geminiRisk.loading && (
+                                <span className="text-[10px] text-gray-300">
+                                    {new Date(geminiRisk.lastUpdated).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                                </span>
+                            )}
+                        </div>
                     </div>
-                    <div className="h-1 bg-gray-50 rounded-full overflow-hidden">
-                        <div className={`h-full transition-all duration-500 ${severity > 0 ? 'bg-red-500' : 'bg-[#10b981]'}`} style={{ width: `${(severity / 5) * 100}%` }}></div>
+
+                    {/* Score + label */}
+                    <div className="flex items-end gap-3">
+                        <span className={`text-4xl font-black tabular-nums ${
+                            geminiRisk.score >= 75 ? "text-red-500" :
+                            geminiRisk.score >= 50 ? "text-amber-500" :
+                            geminiRisk.score >= 25 ? "text-[#005fe7]" : "text-[#10b981]"
+                        }`}>
+                            {geminiRisk.loading && geminiRisk.lastUpdated === null ? "—" : geminiRisk.score}
+                        </span>
+                        <span className={`text-[11px] font-black uppercase tracking-widest mb-1 ${
+                            geminiRisk.score >= 75 ? "text-red-500" :
+                            geminiRisk.score >= 50 ? "text-amber-500" :
+                            geminiRisk.score >= 25 ? "text-[#005fe7]" : "text-[#10b981]"
+                        }`}>
+                            {geminiRisk.label}
+                        </span>
                     </div>
+
+                    {/* Score bar */}
+                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                        <div
+                            className={`h-full rounded-full transition-all duration-700 ${
+                                geminiRisk.score >= 75 ? "bg-red-500" :
+                                geminiRisk.score >= 50 ? "bg-amber-500" :
+                                geminiRisk.score >= 25 ? "bg-[#005fe7]" : "bg-[#10b981]"
+                            }`}
+                            style={{ width: `${geminiRisk.score}%` }}
+                        />
+                    </div>
+
+                    {/* Summary */}
+                    {geminiRisk.summary && (
+                        <p className="text-[11px] text-gray-500 leading-relaxed font-medium">
+                            {geminiRisk.summary}
+                        </p>
+                    )}
+
+                    {/* Recommendations */}
+                    {geminiRisk.recommendations.length > 0 && (
+                        <div className="space-y-1.5 pt-1">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Actions</p>
+                            {geminiRisk.recommendations.map((rec, i) => (
+                                <div key={i} className="flex items-start gap-2">
+                                    <CheckCircle size={11} className="text-[#10b981] mt-0.5 shrink-0" />
+                                    <span className="text-[11px] text-gray-600 leading-tight">{rec}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    {/* Error state */}
+                    {geminiRisk.error && !geminiRisk.loading && (
+                        <p className="text-[10px] text-red-400">{geminiRisk.error}</p>
+                    )}
                 </div>
             </div>
 
