@@ -14,7 +14,7 @@ export const logMetrics = createServerFn()
   .handler(async (data) => {
     try {
       await client.connect();
-      const db = client.db('safedrive');
+      const db = client.db('safeguard');
       const logs = db.collection('driving_logs');
       
       const logEntry = {
@@ -44,7 +44,7 @@ export const getSafetyReport = createServerFn()
   .handler(async (sessionId) => {
     try {
       await client.connect();
-      const db = client.db('safedrive');
+      const db = client.db('safeguard');
       const logs = await db.collection('driving_logs')
         .find({ session_id: sessionId })
         .sort({ timestamp: 1 })

@@ -1,0 +1,32 @@
+[
+  {
+    "desc": "BASELINE ALERT",
+    "features": { "fEAR": 0.1, "fPERCLOS": 0.05, "fYaw": 0.05, "fEntropy": 0.1, "isFacingForward": 1.0 },
+    "labels": { "alert": 1, "drowsy": 0, "intoxicated": 0, "distracted": 0, "phone_use": 0, "medical": 0 }
+  },
+  {
+    "desc": "ACUTE DROWSINESS",
+    "features": { "fPERCLOS": 0.85, "fEAR": 0.9, "fSlowBlink": 0.7, "fYawn": 0.6, "isFacingForward": 1.0 },
+    "labels": { "alert": 0, "drowsy": 1, "intoxicated": 0, "distracted": 0, "phone_use": 0, "medical": 0 }
+  },
+  {
+    "desc": "INTOXICATED SWAYING",
+    "features": { "fEntropy": 0.95, "fTremor": 0.7, "fBlinkVar": 0.6, "fJerk": 0.8, "isFacingForward": 1.0 },
+    "labels": { "alert": 0, "drowsy": 0, "intoxicated": 1, "distracted": 0, "phone_use": 0, "medical": 0 }
+  },
+  {
+    "desc": "MIRROR CHECK (Non-Intoxicated)",
+    "features": { "fYaw": 0.8, "fDistractDur": 0.2, "fGazeVar": 0.6, "isFacingForward": 0.0 },
+    "labels": { "alert": 0, "drowsy": 0, "intoxicated": 0, "distracted": 1, "phone_use": 0, "medical": 0 }
+  },
+  {
+    "desc": "POSTURAL COLLAPSE (Medical)",
+    "features": { "fRoll": 0.95, "fPosture": 0.9, "fAsymmetry": 0.8, "fMissingDur": 0.7 },
+    "labels": { "alert": 0, "drowsy": 0, "intoxicated": 0, "distracted": 0, "phone_use": 0, "medical": 1 }
+  },
+  {
+    "desc": "STEADY DRIVING (Strong Road View)",
+    "features": { "isFacingForward": 1.0, "fEAR": 0.05, "fEntropy": 0.05, "fRoll": 0.05 },
+    "labels": { "alert": 1, "drowsy": 0, "intoxicated": 0, "distracted": 0, "phone_use": 0, "medical": 0 }
+  }
+]

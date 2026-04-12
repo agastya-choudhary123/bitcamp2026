@@ -5,8 +5,8 @@ import { UserPlus, ShieldPlus } from "lucide-react";
 export const Route = createFileRoute("/signup")({
   head: () => ({
     meta: [
-      { title: "SafeDrive AI — Sign Up" },
-      { name: "description", content: "Create your SafeDrive AI account" },
+      { title: "Safeguard AI — Sign Up" },
+      { name: "description", content: "Create your Safeguard AI account" },
     ],
   }),
   component: SignupPage,
@@ -22,7 +22,7 @@ function SignupPage() {
           <div className="p-4 bg-primary/20 rounded-2xl mb-4 border border-primary/30">
             <ShieldPlus size={48} className="text-primary" />
           </div>
-          <h1 className="text-3xl font-extrabold text-foreground mb-2">Join SafeDrive</h1>
+          <h1 className="text-3xl font-extrabold text-foreground mb-2">Join Safeguard</h1>
           <p className="text-muted-foreground text-center">Start your journey towards a safer driving experience.</p>
         </div>
 

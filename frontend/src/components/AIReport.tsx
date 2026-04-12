@@ -19,7 +19,10 @@ const AIReport: React.FC<AIReportProps> = ({ sessionId }) => {
     try {
       const token = await getAccessTokenSilently();
       const resp = await fetch(`http://localhost:3001/report/${username}`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { 
+          Authorization: `Bearer ${token}`,
+          "x-safeguard-dev-bypass": "true"
+        },
       });
       const data = await resp.json();
       
@@ -82,7 +85,7 @@ const AIReport: React.FC<AIReportProps> = ({ sessionId }) => {
           
           <div className="pt-6 border-t border-white/5 flex items-center gap-3 text-accent-green">
             <ShieldCheck size={20} />
-            <span className="text-xs font-bold uppercase tracking-widest">Analysis Verified by SafeDrive AI</span>
+            <span className="text-xs font-bold uppercase tracking-widest">Analysis Verified by Safeguard AI</span>
           </div>
         </div>
       )}

@@ -1,14 +1,11 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { ArrowLeft, Phone, Save, MessageSquare } from "lucide-react";
+import { ArrowLeft, Phone, Save, MessageSquare, ShieldAlert } from "lucide-react";
 
 export const Route = createFileRoute("/emergency-contacts")({
   head: () => ({
-    meta: [
-      { title: "SafeDrive AI — Emergency Contact" },
-      { name: "description", content: "Set up your emergency contact for drowsiness alerts" },
-    ],
+    meta: [ { title: "Safeguard AI — Emergency Contact" } ],
   }),
   component: EmergencyContactPage,
 });
@@ -23,24 +20,23 @@ function EmergencyContactPage() {
 
   const username = localStorage.getItem("username");
 
-  // Fetch contact on load
-  useState(() => {
+  useEffect(() => {
     if (!username) return;
     (async () => {
-      const token = await getAccessTokenSilently();
-      fetch(`http://localhost:3001/user/${username}/contact`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then(res => res.json())
-        .then(data => {
-          if (data.name) {
-            setName(data.name);
-            setPhone(data.phone);
-            setRelationship(data.relationship);
-          }
+      try {
+        const token = await getAccessTokenSilently();
+        const res = await fetch(`http://localhost:3001/user/${username}/contact`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
+        const data = await res.json();
+        if (data.name) {
+          setName(data.name);
+          setPhone(data.phone);
+          setRelationship(data.relationship);
+        }
+      } catch (err) { console.error(err); }
     })();
-  });
+  }, [username, getAccessTokenSilently]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,62 +62,66 @@ function EmergencyContactPage() {
   };
 
   return (
-    <div className="p-8 max-w-2xl mx-auto animate-fade-in pb-48">
-      <header className="flex items-center gap-4 mb-12">
-        <Link to="/dashboard" className="glass-card p-3 hover:bg-foreground/10 transition-colors">
-          <ArrowLeft size={20} className="text-foreground" />
-        </Link>
-        <div>
-          <h1 className="text-4xl font-extrabold text-foreground tracking-tight">Emergency Contact</h1>
-          <p className="text-muted-foreground mt-1 uppercase tracking-widest text-xs font-semibold">
-            Person to notify when drowsiness is critical
-          </p>
-        </div>
-      </header>
+    <div className="min-h-screen bg-white text-[#09090b] p-8 lg:p-12 font-sans">
+      <div className="max-w-2xl mx-auto space-y-10 animate-fade-in">
+        
+        <header className="flex items-center gap-6 border-b border-gray-100 pb-8">
+            <Link to="/dashboard" className="safeguard-card p-3 hover:bg-gray-50 transition-colors">
+              <ArrowLeft size={22} className="text-[#005fe7]" />
+            </Link>
+            <div>
+              <h1 className="text-3xl font-black uppercase tracking-tighter">Safety Protocol</h1>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mt-1">Emergency Responder Configuration</p>
+            </div>
+        </header>
 
-      <div className="glass-card p-8 mb-8">
-        <div className="flex items-center gap-3 mb-2">
-          <MessageSquare size={20} className="text-primary" />
-          <h2 className="text-lg font-bold text-foreground">How it works</h2>
+        <div className="safeguard-card p-8 bg-gray-50 border-gray-100">
+            <div className="flex items-center gap-3 mb-4">
+                <ShieldAlert size={20} className="text-[#005fe7]" />
+                <h2 className="text-xs font-black uppercase tracking-widest">Protocol Logic</h2>
+            </div>
+            <p className="text-[12px] font-bold text-gray-500 leading-relaxed uppercase tracking-tight">
+                When a critical behavioral state (microsleep) is identified, an automated SMS trigger will be dispatched to this node. Includes real-time GPS telemetry and driver identification hash.
+            </p>
         </div>
-        <p className="text-muted-foreground text-sm leading-relaxed">
-          When the system detects critical drowsiness (PERCLOS &gt; 0.12), an emergency SMS will be sent to your designated contact with your name and live GPS location so they can check on you immediately.
-        </p>
+
+        <form onSubmit={handleSave} className="space-y-6">
+            <div className="safeguard-card p-8 space-y-8">
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Responder Full Name</label>
+                    <input 
+                        className="w-full bg-white border border-gray-200 rounded-xl px-5 py-4 font-black uppercase tracking-widest text-sm focus:border-[#005fe7] outline-none transition-all"
+                        type="text" value={name} onChange={(e) => setName(e.target.value)} required 
+                    />
+                </div>
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Telemetry Contact (Phone)</label>
+                    <input 
+                        className="w-full bg-white border border-gray-200 rounded-xl px-5 py-4 font-black uppercase tracking-widest text-sm focus:border-[#005fe7] outline-none transition-all"
+                        type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required 
+                    />
+                </div>
+                <div className="space-y-2">
+                    <label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Node Relationship</label>
+                    <input 
+                        className="w-full bg-white border border-gray-200 rounded-xl px-5 py-4 font-black uppercase tracking-widest text-sm focus:border-[#005fe7] outline-none transition-all"
+                        type="text" value={relationship} onChange={(e) => setRelationship(e.target.value)} required 
+                    />
+                </div>
+            </div>
+
+            <button type="submit" disabled={loading} className="btn-primary w-full py-5 flex items-center justify-center gap-3">
+                <Save size={20} />
+                <span className="text-sm font-black uppercase tracking-widest">{loading ? "SYNCING..." : "COMMIT CHANGES"}</span>
+            </button>
+
+            {saved && (
+                <div className="text-center text-[#10b981] text-[10px] font-black uppercase tracking-widest animate-fade-in">
+                    Protocol updated successfully
+                </div>
+            )}
+        </form>
       </div>
-
-      <form onSubmit={handleSave} className="space-y-6">
-        <div className="glass-card p-6 space-y-4">
-          <div className="flex items-center gap-2">
-            <Phone size={16} className="text-primary" />
-            <h3 className="text-foreground font-bold text-sm uppercase tracking-widest opacity-60">
-              Contact Details
-            </h3>
-          </div>
-          <div className="flex flex-col space-y-2">
-            <label className="text-sm font-semibold text-muted-foreground ml-1">Full Name</label>
-            <input type="text" placeholder="Jane Doe" value={name} onChange={(e) => setName(e.target.value)} required />
-          </div>
-          <div className="flex flex-col space-y-2">
-            <label className="text-sm font-semibold text-muted-foreground ml-1">Phone Number</label>
-            <input type="tel" placeholder="+1 (555) 123-4567" value={phone} onChange={(e) => setPhone(e.target.value)} required />
-          </div>
-          <div className="flex flex-col space-y-2">
-            <label className="text-sm font-semibold text-muted-foreground ml-1">Relationship</label>
-            <input type="text" placeholder="Spouse, Parent, Friend..." value={relationship} onChange={(e) => setRelationship(e.target.value)} required />
-          </div>
-        </div>
-
-        <button type="submit" className="btn-primary w-full text-lg font-bold py-4">
-          <Save size={20} />
-          Save Contact
-        </button>
-
-        {saved && (
-          <div className="text-center text-accent-green text-sm font-bold animate-fade-in">
-            ✓ Emergency contact saved successfully!
-          </div>
-        )}
-      </form>
     </div>
   );
 }

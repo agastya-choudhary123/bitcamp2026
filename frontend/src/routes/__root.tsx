@@ -31,40 +31,14 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "SafeDrive AI" },
-      { name: "description", content: "AI-powered driver drowsiness detection system" },
-      { name: "author", content: "SafeDrive AI" },
-      { property: "og:title", content: "SafeDrive AI" },
-      { property: "og:description", content: "AI-powered driver drowsiness detection system" },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary" },
-      { name: "twitter:site", content: "@Lovable" },
-    ],
-    links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
+      { title: "Safeguard AI" },
     ],
   }),
-  shellComponent: RootShell,
   component: RootComponent,
   notFoundComponent: NotFoundComponent,
 });
 
-function RootShell({ children }: { children: React.ReactNode }) {
-  return (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  );
-}
+// Note: RootShell is now handled by the physical index.html for compatibility.
 
 function RootComponent() {
   return (
@@ -72,7 +46,7 @@ function RootComponent() {
       domain={import.meta.env.VITE_AUTH0_DOMAIN}
       clientId={import.meta.env.VITE_AUTH0_CLIENT_ID}
       authorizationParams={{
-        redirect_uri: import.meta.env.VITE_AUTH0_CALLBACK_URL
+        redirect_uri: import.meta.env.VITE_AUTH0_CALLBACK_URL,
       }}
     >
       <Outlet />

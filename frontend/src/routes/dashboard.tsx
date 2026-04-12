@@ -1,247 +1,246 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { useEffect, useRef, useState } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
-import { Camera, Activity, AlertTriangle, User, Info, LineChart, Video as VideoIcon, LogOut, Phone } from "lucide-react";
+import { Activity, ShieldCheck, Video as VideoIcon, Terminal, Binary, ChevronDown, ChevronUp, Info, AlertTriangle } from "lucide-react";
 import WaveformChart from "@/components/WaveformChart";
 import AIReport from "@/components/AIReport";
 import RiskScore from "@/components/RiskScore";
+import { useSafeguardAI } from "@/AI/useSafeguardAI";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
-    meta: [
-      { title: "SafeDrive AI — Dashboard" },
-      { name: "description", content: "Real-time driver drowsiness monitoring dashboard" },
-    ],
+    meta: [ { title: "Safeguard AI — Debug Dashboard" } ],
   }),
   component: DashboardPage,
 });
 
 function DashboardPage() {
-  const { isAuthenticated, isLoading, logout, getAccessTokenSilently } = useAuth0();
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [isCameraActive, setIsCameraActive] = useState(false);
-  const [earScore, setEarScore] = useState(0.35);
+  const { isAuthenticated, isLoading, logout } = useAuth0();
   const [history, setHistory] = useState<number[]>(new Array(40).fill(0.35));
-  const [perclos, setPerclos] = useState(0.05);
-  const [headPose, setHeadPose] = useState("Stable");
-  const [systemState, setSystemState] = useState("Awake");
-  const [hazardState, setHazardState] = useState("Clear");
   const [userName, setUserName] = useState("Driver");
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showDrowsinessAlert, setShowDrowsinessAlert] = useState(false);
-  const [drowsinessAcknowledged, setDrowsinessAcknowledged] = useState(false);
+  
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const navigate = Route.useNavigate();
 
-  useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      navigate({ to: "/" });
-    }
-  }, [isAuthenticated, isLoading, navigate]);
+  const { metrics, behaviorStates, severity, hazard } = useSafeguardAI(videoRef, canvasRef);
 
   useEffect(() => {
+    if (metrics) setHistory((h) => [...h.slice(1), metrics.ear || 0]);
+  }, [metrics]);
+
+  useEffect(() => {
+    if (!isLoading && !isAuthenticated) navigate({ to: "/" });
     const storedName = localStorage.getItem("driverName");
     if (storedName) setUserName(storedName);
-  }, []);
-
-  // --- REAL DATA POLLING ---
-  useEffect(() => {
-    const fetchStatus = async () => {
-      const username = localStorage.getItem("username") || "";
-      try {
-        const token = await getAccessTokenSilently();
-        const resp = await fetch(`http://localhost:3001/status/${username}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        const data = await resp.json();
-        
-        if (data.ear !== undefined) {
-          setEarScore(data.ear);
-          setHistory((h) => [...h.slice(1), data.ear]);
-          setPerclos(data.perclos / 100 || 0);
-          
-          // Interpret internal states
-          const dState = data.internal?.drowsiness?.state || "awake";
-          setSystemState(dState.replace(/_/g, " ").toUpperCase());
-          
-          const pitch = data.internal?.distraction?.headPitch || 0;
-          const yaw = data.internal?.distraction?.headYaw || 0;
-          if (Math.abs(pitch) > 15 || Math.abs(yaw) > 15) setHeadPose("Distracted");
-          else setHeadPose("Stable");
-
-          // Interpret external hazards
-          const hState = data.external?.forwardHazard?.state || "clear";
-          setHazardState(hState.replace(/_/g, " ").toUpperCase());
-        }
-      } catch (err) {
-        console.error("Failed to poll status:", err);
-      }
-    };
-
-    const interval = setInterval(fetchStatus, 3000); // 3 second polling
-    fetchStatus();
-    
-    return () => clearInterval(interval);
-  }, []);
-
-  // Show drowsiness popup when score drops below threshold
-  useEffect(() => {
-    if (earScore < 0.25 && !drowsinessAcknowledged) {
-      setShowDrowsinessAlert(true);
-    }
-    if (earScore >= 0.25) {
-      setDrowsinessAcknowledged(false);
-    }
-  }, [earScore, drowsinessAcknowledged]);
-
-  const handleAcknowledgeDrowsiness = () => {
-    setShowDrowsinessAlert(false);
-    setDrowsinessAcknowledged(true);
-  };
+  }, [isAuthenticated, isLoading, navigate]);
 
   const handleLogout = () => {
     localStorage.removeItem("driverName");
-    localStorage.removeItem("username");
     logout({ logoutParams: { returnTo: window.location.origin } });
   };
 
-  const getStatusColor = () => {
-    if (earScore < 0.25) return "text-accent-red";
-    if (earScore < 0.3) return "text-accent-yellow";
-    return "text-accent-green";
-  };
-
   return (
-    <div className="p-8 max-w-7xl mx-auto space-y-8 animate-fade-in">
-      <header className="flex justify-between items-center">
-        <div>
-          <h1 className="text-4xl font-extrabold text-foreground tracking-tight">{userName}'s Dashboard</h1>
-          <p className="text-muted-foreground mt-1 uppercase tracking-widest text-xs font-semibold">Real-time eye monitoring system</p>
-        </div>
-        <div className="flex gap-3">
-          <Link to="/replays" className="glass-card p-3 px-6 flex items-center gap-2 text-sm font-medium hover:bg-foreground/5 transition-colors text-foreground">
-            <VideoIcon size={18} className="text-primary" />
-            Replays
-          </Link>
-          <Link to="/guide" className="glass-card p-3 px-6 flex items-center gap-2 text-sm font-medium hover:bg-foreground/5 transition-colors text-foreground">
-            <Info size={18} />
-            Safety Guide
-          </Link>
-          <Link to="/emergency-contacts" className="glass-card p-3 px-6 flex items-center gap-2 text-sm font-medium hover:bg-foreground/5 transition-colors text-foreground">
-            <Phone size={18} className="text-primary" />
-            Contacts
-          </Link>
-          <div className="relative">
-            <button
-              onClick={() => setShowProfileMenu(!showProfileMenu)}
-              className="glass-card p-3 px-6 flex items-center gap-2 text-sm font-medium text-foreground hover:bg-foreground/5 transition-colors"
-            >
-              <User size={18} />
-              {userName}
-            </button>
-            {showProfileMenu && (
-              <div className="absolute top-full mt-2 right-0 w-48 glass-card border border-primary/20 p-2 z-[100] shadow-2xl animate-fade-in">
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-left px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-destructive/20 transition-colors text-accent-red flex items-center gap-2"
-                >
-                  <LogOut size={14} />
-                  Log Out
-                </button>
+    <div className="min-h-screen bg-white text-[#09090b] p-6 lg:p-8 font-sans">
+      <div className="max-w-[1600px] mx-auto space-y-8 animate-fade-in">
+        
+        {/* TOP SYSTEM NAV */}
+        <header className="flex justify-between items-center border-b border-gray-100 pb-6">
+          <div className="flex items-center gap-3">
+            <div className="bg-[#005fe7] p-2.5 rounded-xl shadow-lg shadow-blue-100">
+              <ShieldCheck className="text-white" size={24} />
+            </div>
+            <div>
+              <h1 className="text-xl font-black tracking-tight uppercase">Safeguard Intelligence</h1>
+              <div className="flex items-center gap-2 text-[12px] font-black uppercase text-gray-400 tracking-widest">
+                <span className={severity > 2 ? "text-red-500" : "text-[#10b981]"}>● {severity > 2 ? "RISK_IDENTIFIED" : "SYSTEM_SAFE"}</span>
+                <span>/</span>
+                <span>NODE_01</span>
+                <span>/</span>
+                <span>{userName}</span>
               </div>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2 space-y-8">
-          <div className="glass-card p-4 relative">
-            <div className="flex items-center gap-2 mb-4 text-sm font-bold uppercase tracking-wider text-muted-foreground">
-              <Camera size={16} className="text-primary" />
-              Live Visual Monitoring
-            </div>
-            <div className="video-container aspect-video flex items-center justify-center bg-black/40 overflow-hidden">
-               {/* Note: This is a placeholder for the CV-Engine overlay if embedded */}
-               <div className="text-center">
-                 <p className="text-muted-foreground italic text-sm">Webcam feed processed by CV Engine</p>
-                 <p className="text-[10px] text-primary mt-1">DATA PIPELINE ACTIVE</p>
-               </div>
             </div>
           </div>
+          <div className="flex items-center gap-4">
+            <Link to="/replays" className="text-[12px] font-black uppercase tracking-widest text-[#09090b] hover:text-[#005fe7] transition-colors">Replays</Link>
+            <Link to="/emergency-contacts" className="text-[12px] font-black uppercase tracking-widest text-[#09090b] hover:text-[#005fe7] transition-colors">Emergency</Link>
+            <button onClick={handleLogout} className="text-[12px] font-black uppercase tracking-widest text-red-500 hover:text-red-600">Disconnect</button>
+          </div>
+        </header>
 
-          {/* Waveform Chart */}
-          <div className="glass-card p-6 h-[250px]">
-            <div className="flex items-center gap-2 mb-4 text-sm font-bold uppercase tracking-wider text-muted-foreground">
-              <Activity size={16} className="text-primary" />
-              EAR Waveform History
+        <div className="grid grid-cols-12 gap-8">
+          
+          {/* LEFT: FEED & ALERTS */}
+          <div className="col-span-12 lg:col-span-7 space-y-8">
+            <div className="safeguard-card p-4">
+                <div className="flex items-center justify-between mb-4 px-2">
+                    <div className="flex items-center gap-2 text-[12px] font-black uppercase tracking-widest text-gray-400">
+                        <VideoIcon size={14} className="text-[#005fe7]" />
+                        Optical Stream Layer
+                    </div>
+                </div>
+                <div className="video-container aspect-video relative rounded-xl bg-black">
+                    <video ref={videoRef} className="w-full h-full object-cover opacity-90 shadow-2xl" muted playsInline />
+                    <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" width={640} height={480} />
+                </div>
             </div>
-            <WaveformChart dataPoints={history} />
+
+            <div className="grid grid-cols-2 gap-8">
+                <div className="safeguard-card p-8 h-[220px]">
+                    <div className="flex items-center gap-2 mb-6 text-[12px] font-black uppercase tracking-widest text-gray-400">
+                        <Activity size={16} className="text-[#005fe7]" />
+                        EAR History
+                    </div>
+                    <WaveformChart dataPoints={history} />
+                </div>
+                
+                <div className="space-y-8">
+                    {/* STATE FLAGS */}
+                    <div className="safeguard-card p-8 min-h-[140px] flex flex-col">
+                        <div className="flex items-center gap-2 mb-6 text-[12px] font-black uppercase tracking-widest text-gray-400">
+                            <Terminal size={14} className="text-[#005fe7]" />
+                            Behavioral State Flags
+                        </div>
+                        <div className="flex-1 flex flex-wrap gap-2 content-start">
+                            {behaviorStates.map(s => (
+                                <span key={s} className={`px-3 py-1.5 rounded-lg text-[11px] font-black uppercase tracking-wider border ${s === 'alert' ? 'bg-gray-50 text-gray-400 border-gray-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
+                                    {s}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* STATUS SUMMARY */}
+                    <div className={`safeguard-card p-6 border-l-4 transition-colors ${severity > 2 ? 'border-l-red-500 bg-red-50' : 'border-l-[#005fe7] bg-white'}`}>
+                        <div className="flex items-center gap-3 mb-2">
+                            {severity > 2 ? <AlertTriangle className="text-red-600" size={20} /> : <ShieldCheck className="text-[#005fe7]" size={20} />}
+                            <h2 className="text-[12px] font-black uppercase tracking-widest">{hazard?.state === "hazard" ? "IMMEDIATE RISK" : "SYSTEM_NOMINAL"}</h2>
+                        </div>
+                        <p className="text-[12px] font-bold text-gray-500 leading-tight uppercase tracking-tight">Active State Sync: {behaviorStates.join(", ")}</p>
+                    </div>
+                </div>
+            </div>
+            
+            {/* INTEGRATED: Upstream RiskScore & AIReport for the main flow */}
+            <div className="grid grid-cols-1 gap-8">
+               <RiskScore />
+            </div>
           </div>
 
-          <AIReport sessionId="current_session" />
-        </div>
+          {/* RIGHT: DEBUG TELEMETRY GRID */}
+          <div className="col-span-12 lg:col-span-5 space-y-6">
+            <div className="safeguard-card p-8">
+                <div className="flex items-center gap-3 mb-8 text-[12px] font-black uppercase tracking-widest text-gray-400 border-b border-gray-100 pb-4">
+                    <Binary size={16} className="text-[#005fe7]" />
+                    Raw Diagnostics [Grid Mode]
+                </div>
+                
+                <div className="grid grid-cols-2 gap-x-8 gap-y-6 content-start items-start">
+                    <MetricBlock label="EAR" value={metrics?.ear} format="4f" isAlert={metrics?.ear < 0.25} 
+                                 desc="Eye Aspect Ratio. Measures openness of eyes." />
+                    
+                    <MetricBlock label="PERCLOS" value={metrics?.perclos} format="pct" isAlert={metrics?.perclos > 0.12} 
+                                 desc="Percent Eye Closure time. Sci measurement of drowsiness." />
 
-        <div className="space-y-8">
-          <RiskScore />
-          <div className="glass-card p-8 flex flex-col items-center justify-center text-center">
-            <div className="flex items-center gap-2 mb-6 text-sm font-bold uppercase tracking-wider text-muted-foreground">
-              <LineChart size={16} className="text-primary" />
-              Current EAR Level
-            </div>
-            <div className="gauge-container mb-4">
-              <div className="absolute inset-0 rounded-full border-[10px] border-foreground/5"></div>
-              <div
-                className="absolute inset-0 rounded-full border-[10px] border-transparent border-t-primary transition-all duration-500"
-                style={{ transform: `rotate(${(earScore - 0.2) * 400}deg)` }}
-              ></div>
-              <span className={`gauge-value ${getStatusColor()}`}>{earScore.toFixed(3)}</span>
-            </div>
-            <p className="text-muted-foreground text-xs font-bold uppercase tracking-widest">{systemState}</p>
-          </div>
+                    <MetricBlock label="Blink Rate" value={metrics?.blinkRate} format="1f" isAlert={metrics?.blinkRate > 25 || metrics?.blinkRate < 5} 
+                                 desc="Blinks per minute. High rate indicates fatigue." />
 
-          <div className="glass-card p-6 space-y-4">
-            <h3 className="font-bold text-foreground uppercase text-xs tracking-widest opacity-50">Live Telemetry</h3>
-            <div className="flex justify-between items-center py-2 border-b border-white/5">
-              <span className="text-muted-foreground text-sm">PERCLOS</span>
-              <span className="font-mono text-primary font-bold">{(perclos * 100).toFixed(1)}%</span>
+                    <MetricBlock label="Blink Duration" value={metrics?.blinkDuration} format="ms" isAlert={metrics?.blinkDuration > 250} 
+                                 desc="Avg blink duration. Normal is 100-150ms." />
+
+                    <MetricBlock label="Fatigue Ratio" value={metrics?.fatigueRatio} format="2f" isAlert={metrics?.fatigueRatio < 0.85} 
+                                 desc="Ratio of current EAR vs baseline awake state." />
+
+                    <MetricBlock label="Head Entropy" value={metrics?.entropy} format="2f" isAlert={metrics?.entropy > 2.0} 
+                                 desc="Randomness of head movement. High=unstable." />
+
+                    <MetricBlock label="MicroTremor" value={metrics?.microTremor} format="5f" isAlert={metrics?.microTremor > 0.002} 
+                                 desc="Tiny, involuntary tremors in facial landmarks." />
+
+                    <MetricBlock label="Gaze Ratio" value={metrics?.gazeRatio} format="2f" isAlert={Math.abs(metrics?.gazeRatio - 0.5) > 0.3} 
+                                 desc="Horizontal focus. 0.5 is centered path." />
+
+                    <MetricBlock label="Gaze Vertical" value={metrics?.gazeVertical} format="2f" isAlert={metrics?.gazeVertical > 0.65} 
+                                 desc="Vertical focus. > 0.65 indicates phone use." />
+
+                    <MetricBlock label="Yawn Count" value={metrics?.yawnCount} format="0f" isAlert={metrics?.yawnCount > 0} 
+                                 desc="Number of yawning events in the last 5 minutes." />
+
+                    <MetricBlock label="Posture Lean" value={metrics?.postureLean} format="2f" isAlert={Math.abs(metrics?.postureLean) > 0.15} 
+                                 desc="Horizontal body alignment. Side-to-side lean." />
+
+                    <MetricBlock label="Slow Blinks" value={metrics?.slowBlinks} format="0f" isAlert={metrics?.slowBlinks > 0} 
+                                 desc="Count of blinks lasting > 300ms." />
+
+                    <MetricBlock label="Eye Rubs" value={metrics?.eyeRubs} format="0f" isAlert={metrics?.eyeRubs > 0} 
+                                 desc="Detection of manual eye/face manipulation." />
+
+                    <MetricBlock label="Head Pitch" value={metrics?.headPitch} format="1f" isAlert={Math.abs(metrics?.headPitch) > 18} 
+                                 desc="Vertical head tilt (nodding events)." />
+
+                    <MetricBlock label="Head Yaw" value={metrics?.headYaw} format="1f" isAlert={Math.abs(metrics?.headYaw) > 20} 
+                                 desc="Horizontal rotation (looking left/right)." />
+
+                    <MetricBlock label="Head Roll" value={metrics?.headRoll} format="1f" isAlert={Math.abs(metrics?.headRoll) > 12} 
+                                 desc="Side-to-side head tilt (ear towards shoulder)." />
+                </div>
+
+                <div className="mt-10 pt-6 border-t border-gray-100">
+                    <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-[0.2em] text-gray-400 mb-2">
+                        <span>Risk Integrity Profile</span>
+                        <span className={severity > 0 ? "text-red-500" : "text-[#10b981]"}>{severity > 0 ? ((severity / 5) * 100).toFixed(0) : 0}%</span>
+                    </div>
+                    <div className="h-1 bg-gray-50 rounded-full overflow-hidden">
+                        <div className={`h-full transition-all duration-500 ${severity > 0 ? 'bg-red-500' : 'bg-[#10b981]'}`} style={{ width: `${(severity / 5) * 100}%` }}></div>
+                    </div>
+                </div>
             </div>
-            <div className="flex justify-between items-center py-2 border-b border-white/5">
-              <span className="text-muted-foreground text-sm">Head Pose</span>
-              <span className={`font-mono font-bold ${headPose === "Stable" ? "text-accent-green" : "text-accent-yellow"}`}>{headPose}</span>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-white/5">
-              <span className="text-muted-foreground text-sm">Road Hazards</span>
-              <span className={`font-mono font-bold ${hazardState === "CLEAR" ? "text-accent-green" : "text-accent-red"}`}>{hazardState}</span>
-            </div>
-            <div className="flex justify-between items-center py-2">
-              <span className="text-muted-foreground text-sm">Safety Status</span>
-              <span className={`px-3 py-1 rounded-full text-[10px] font-black tracking-tighter ${systemState === "AWAKE" ? "bg-accent-green/20 text-accent-green" : "bg-accent-red/20 text-accent-red"}`}>
-                {systemState === "AWAKE" ? "NOMINAL" : "CRITICAL"}
-              </span>
-            </div>
+
+            <AIReport sessionId="current_session" />
           </div>
         </div>
       </div>
-      {/* Drowsiness Alert Modal */}
-      {showDrowsinessAlert && (
-        <div className="fixed inset-0 z-[200] flex items-center justify-center bg-background/80 backdrop-blur-sm animate-fade-in">
-          <div className="glass-card p-10 max-w-md w-full mx-4 border-2 border-accent-red/50 text-center space-y-6">
-            <div className="mx-auto w-20 h-20 rounded-full bg-accent-red/20 flex items-center justify-center animate-pulse">
-              <AlertTriangle size={40} className="text-accent-red" />
+    </div>
+  );
+}
+
+function MetricBlock({ label, value, format, isAlert, desc }: { label: string, value: any, format: string, isAlert?: boolean, desc: string }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const displayValue = () => {
+    if (value === undefined || value === null) return "---";
+    if (format === "4f") return value.toFixed(4);
+    if (format === "3f") return value.toFixed(3);
+    if (format === "2f") return value.toFixed(2);
+    if (format === "1f") return value.toFixed(1);
+    if (format === "5f") return value.toFixed(5);
+    if (format === "pct") return (value * 100).toFixed(1) + "%";
+    if (format === "ms") return Math.round(value) + "ms";
+    return value;
+  };
+
+  return (
+    <div className="flex flex-col h-auto min-h-[48px] self-start">
+        <div 
+            className="flex items-center justify-between cursor-pointer group"
+            onClick={() => setIsOpen(!isOpen)}
+        >
+            <div className={`flex flex-col transition-colors ${isAlert ? 'text-red-600' : 'text-[#09090b]'}`}>
+                <span className="text-[11px] font-black uppercase tracking-widest opacity-50 group-hover:opacity-100 whitespace-nowrap">{label}</span>
+                <span className="font-mono text-[15px] font-black leading-tight">{displayValue()}</span>
             </div>
-            <h2 className="text-2xl font-extrabold text-foreground">Drowsiness Detected!</h2>
-            <p className="text-muted-foreground">
-              Your eye closure ratio has dropped to dangerous levels. Please pull over safely if you feel fatigued.
-            </p>
-            <button
-              onClick={handleAcknowledgeDrowsiness}
-              className="btn-primary w-full text-lg font-bold py-4"
-            >
-              I'm Awake — Dismiss
-            </button>
-          </div>
+            <div className="text-gray-300 group-hover:text-[#005fe7] transition-colors ml-2">
+                {isOpen ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </div>
         </div>
-      )}
+        {isOpen && (
+            <div className="mt-1.5 p-2.5 bg-gray-50 rounded-lg text-[11px] font-bold text-gray-500 leading-tight animate-fade-in border border-gray-100 overflow-hidden break-words w-full">
+                <div className="flex items-start gap-1.5">
+                    <Info size={12} className="text-[#005fe7] mt-0.5 shrink-0" />
+                    <span>{desc}</span>
+                </div>
+            </div>
+        )}
     </div>
   );
 }
