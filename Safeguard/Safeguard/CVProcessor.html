@@ -9,7 +9,6 @@
 <body>
     <div id="debug">Initializing AI Intelligence...</div>
     <img id="faceImg" style="display:none;" />
-    <canvas id="roadCanvas" style="display:none;"></canvas>
 
     <script>
         window.debug = (msg) => {
@@ -22,7 +21,7 @@
     </script>
 
     <script type="module">
-        import { FaceLandmarker, FilesetResolver } from "safeguard-local://host/AI_Assets/vision_bundle.js";
+        import { FaceLandmarker, ObjectDetector, FilesetResolver } from "safeguard-local://host/AI_Assets/vision_bundle.js";
 
         /** 
          * STABLE SINGLE-LAYER LEARNED WEIGHTS
@@ -227,6 +226,10 @@
 
         const smoother = new TemporalSmoother();
         let faceLandmarker;
+        let objectDetector;
+
+        // Categories that count as road hazards
+        const HAZARD_CATEGORIES = new Set(["car","truck","bus","motorcycle","bicycle","person","train","vehicle"]);
 
         async function initAI() {
             try {
@@ -234,6 +237,10 @@
                 faceLandmarker = await FaceLandmarker.createFromOptions(filesetResolver, {
                     baseOptions: { modelAssetPath: "safeguard-local://host/AI_Assets/face_landmarker.task", delegate: "GPU" },
                     runningMode: "IMAGE", numFaces: 1, outputFaceBlendshapes: true
+                });
+                objectDetector = await ObjectDetector.createFromOptions(filesetResolver, {
+                    baseOptions: { modelAssetPath: "safeguard-local://host/AI_Assets/efficientdet_lite0.tflite", delegate: "GPU" },
+                    runningMode: "IMAGE", scoreThreshold: 0.4, maxResults: 5
                 });
                 window.isAIReady = true;
                 window.webkit.messageHandlers.safeguardBridge.postMessage({ type: "ready" });
@@ -243,50 +250,45 @@
 
         function pixelDistance(p1, p2, w, h) { return Math.sqrt(Math.pow((p1.x - p2.x)*w,2) + Math.pow((p1.y - p2.y)*h,2)); }
 
-        // --- PROXIMITY DETECTOR ---
-        // Measures edge density in the center zone of the road frame.
-        // A large close object produces dense edges filling the center.
-        // Returns a hazard score 0-100.
+        // --- PROXIMITY DETECTOR (ObjectDetector CV) ---
+        // Uses MediaPipe ObjectDetector to find vehicles/people in the road frame.
+        // Bounding box area as fraction of frame = proximity score (0-100).
+        // A car filling 25%+ of the frame is dangerously close.
         async function analyzeRoadProximity(base64) {
+            if (!objectDetector) return 0;
             try {
-                const canvas = document.getElementById('roadCanvas');
-                const ctx = canvas.getContext('2d');
                 const img = new Image();
                 const blob = await (await fetch("data:image/jpeg;base64," + base64)).blob();
                 const url = URL.createObjectURL(blob);
                 await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
                 URL.revokeObjectURL(url);
 
-                // Downsample to 80x60 for speed
-                const SW = 80, SH = 60;
-                canvas.width = SW; canvas.height = SH;
-                ctx.drawImage(img, 0, 0, SW, SH);
+                const result = objectDetector.detect(img);
+                let maxScore = 0;
 
-                const px = ctx.getImageData(0, 0, SW, SH).data;
+                for (const det of result.detections) {
+                    const cat = det.categories[0];
+                    if (!HAZARD_CATEGORIES.has(cat?.categoryName?.toLowerCase())) continue;
+                    if (cat.score < 0.4) continue;
 
-                // Analyze center 40% horizontally, bottom 60% vertically (road zone)
-                const x0 = Math.floor(SW * 0.3), x1 = Math.floor(SW * 0.7);
-                const y0 = Math.floor(SH * 0.4), y1 = SH;
+                    const bb = det.boundingBox;
+                    // Bounding box area as fraction of total image
+                    const areaFraction = (bb.width * bb.height) / (img.naturalWidth * img.naturalHeight);
 
-                let edgeSum = 0, count = 0;
-                for (let y = y0; y < y1 - 1; y++) {
-                    for (let x = x0; x < x1 - 1; x++) {
-                        const i = (y * SW + x) * 4;
-                        const gray = (px[i] + px[i+1] + px[i+2]) / 3;
-                        const iR = (y * SW + (x+1)) * 4;
-                        const grayR = (px[iR] + px[iR+1] + px[iR+2]) / 3;
-                        const iD = ((y+1) * SW + x) * 4;
-                        const grayD = (px[iD] + px[iD+1] + px[iD+2]) / 3;
-                        edgeSum += Math.abs(gray - grayR) + Math.abs(gray - grayD);
-                        count++;
-                    }
+                    // Check if object is in the center lane zone (not just edge of frame)
+                    const centerX = (bb.originX + bb.width / 2) / img.naturalWidth;
+                    const inLane = centerX > 0.25 && centerX < 0.75;
+
+                    if (!inLane) continue;
+
+                    // areaFraction >= 0.25 (fills 25%+ of frame) = very close
+                    // Scale: 5% area → score 20, 25% area → score 100
+                    const proximity = Math.min(100, Math.round((areaFraction / 0.25) * 100));
+                    maxScore = Math.max(maxScore, proximity);
                 }
 
-                // Normalize: avg edge strength, scale to 0-100
-                const avgEdge = count > 0 ? edgeSum / count : 0;
-                // Threshold tuning: empty road ~5-15, close vehicle ~30-60+
-                const score = Math.min(100, Math.round((avgEdge / 40) * 100));
-                return score;
+                img.src = "";
+                return maxScore;
             } catch (e) {
                 return 0;
             }

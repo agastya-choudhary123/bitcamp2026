@@ -163,11 +163,17 @@ struct DashboardView: View {
             guard isDriving else { return }
             if newStates.contains("microsleep") {
                 AlertSoundManager.shared.playMicrosleepAlarm()
+            } else {
+                AlertSoundManager.shared.stopMicrosleepAlarm()
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .proximityAlertTriggered)) { _ in
+        .onChange(of: backgroundProcessor.hazardScore) { _, score in
             guard isDriving else { return }
-            AlertSoundManager.shared.playProximityWarning()
+            if score >= 60 {
+                AlertSoundManager.shared.playProximityWarning()
+            } else {
+                AlertSoundManager.shared.stopProximityWarning()
+            }
         }
     }
 
@@ -441,6 +447,8 @@ struct DashboardView: View {
         monitor.stopPolling()
         backgroundProcessor.resetMetrics()
         stopStateSync()
+        AlertSoundManager.shared.stopMicrosleepAlarm()
+        AlertSoundManager.shared.stopProximityWarning()
     }
 
     // MARK: - State Sync
