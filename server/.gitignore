@@ -1,19 +1,15 @@
-<<<<<<< HEAD
 # Dependencies
 node_modules/
 /jspm_packages/
 
-# Debug logs
-=======
 # Logs
 logs
 *.log
->>>>>>> d7d7adef3ca7647acd85f06db541e38d52f3c7d3
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
-<<<<<<< HEAD
+lerna-debug.log*
 
 # Environment variables
 .env
@@ -21,49 +17,38 @@ pnpm-debug.log*
 .env.development.local
 .env.test.local
 .env.production.local
+*.local
 
 # Build outputs
 dist/
+dist-ssr/
 build/
-.next/
 out/
+.next/
+.output/
+.vinxi/
+.nitro/
+.tanstack/**
+
+# Wrangler / Cloudflare
+.wrangler/
+.dev.vars
 
 # OS files
 .DS_Store
 Thumbs.db
 
 # IDEs and editors
-.vscode/
+.vscode/*
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo
-
-# Project specific
-bitcamp2026/
-=======
-lerna-debug.log*
-
-node_modules
-dist
-dist-ssr
-.output
-.vinxi
-.tanstack/**
-.nitro
-*.local
-
-# Wrangler / Cloudflare
-.wrangler/
-.dev.vars
-
-# Editor directories and files
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
+*.sw?
 *.suo
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?
->>>>>>> d7d7adef3ca7647acd85f06db541e38d52f3c7d3
+
+# Project specific
+bitcamp2026/

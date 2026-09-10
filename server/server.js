@@ -568,7 +568,7 @@ Asymmetry >0.25 = stroke signal, score must be >=75.`
 app.get("/test-call", async (req, res) => {
     try {
         await initiateEmergencyCall({
-            contact: { name: "Test", phone: "+12242928589" },
+            contact: { name: "Test", phone: process.env.TEST_PHONE_NUMBER },
             driverName: "Agastya",
             emergencyReason: "MICROSLEEP DETECTED",
             lat: 38.9072,
